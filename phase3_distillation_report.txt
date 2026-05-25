@@ -1,0 +1,39 @@
+
+=== Phase 3 Knowledge Distillation Report ===
+
+Setup:
+  Teacher:     LightweightTBNet (ResNet18 + AttentionCondenser)
+  Student:     MobileNetV3-Small
+  Temperature: 4
+  Alpha:       0.7 (distillation) / 0.3 (hard labels)
+  Epochs:      20
+
+Model Comparison:
+                    Teacher       Student
+  Parameters:     11,505,859    1,519,906
+  Size ratio:     baseline      13.2% of teacher
+
+Test Set Results:
+                    Teacher       Student     Delta
+  Accuracy:        100.00%        99.52%     -0.48%
+  Sensitivity:     100.00%        97.10%     -2.90%
+  Specificity:     100.00%       100.00%     +0.00%
+  Latency (ms):      5.33         87.05
+
+Sensitivity Gap: 2.90%
+Student matches teacher sensitivity within 2%: NO
+
+=== Student Fine-tune Report (sensitivity-focused) ===
+
+Fine-tune setup:
+  TB class weight:  3.0x
+  Epochs:           15
+  LR:               5e-05
+
+Test Set Results:
+  Accuracy:         100.00%
+  Sensitivity:      100.00%   (teacher: 100.00%, gap: 0.00%)
+  Specificity:      100.00%
+  Latency (ms):     11.46
+
+Student matches teacher sensitivity within 2%: YES

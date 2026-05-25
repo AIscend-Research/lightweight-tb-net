@@ -1,3 +1,6 @@
 data/
-data/
-data/
+checkpoints/int8_model.pth
+checkpoints/fp16_model.pth
+checkpoints/pruned_25.pth
+checkpoints/pruned_50.pth
+checkpoints/pruned_75.pth

@@ -1,0 +1,45 @@
+
+=== Phase 3 Smartphone Deployment Report ===
+
+Model: MobileNetV3-Small student (knowledge distillation)
+
+Export:
+  Format:          ONNX (opset 18)
+  PyTorch .pth:    6.21 MB
+  ONNX size:       6.42 MB
+  Parameters:      1,519,906 (1.52M)
+
+ONNX Runtime Inference (CPU, 2-thread — mobile proxy):
+  Mean latency:    4.40 ms/image
+  Median latency:  4.33 ms/image
+  Min latency:     4.27 ms/image
+  Max latency:     6.29 ms/image
+  Peak RAM:        0.66 MB
+
+Standard Test Set (clean images):
+  Accuracy:        100.00%
+  Sensitivity:     100.00%
+  Specificity:     100.00%
+
+Simulated Phone-Capture Test (blur + colour jitter):
+  Accuracy:        17.27%
+  Sensitivity:     100.00%
+  Specificity:     0.86%
+  Mean latency:    5.10 ms/image
+
+Smartphone Targets:
+  Model < 50 MB:       PASS (6.42 MB)
+  Inference < 2000 ms: PASS (4.40 ms)
+
+Notes:
+  - Benchmarked on Apple Silicon CPU with 2 threads to simulate
+    a dual-core mobile CPU. Actual Android inference via ONNX
+    Runtime Mobile would vary by device.
+  - ONNX export split into student.onnx (structure) +
+    student.onnx.data (weights) by PyTorch dynamo exporter.
+  - Phone-capture test shows model collapses to predicting TB for
+    nearly all degraded images (100% sensitivity, ~0% specificity).
+    Root cause: model was trained only on clean clinical images and
+    is not robust to camera blur + colour shift. Mitigation: include
+    degraded augmentations in training or fine-tune on real phone
+    captures before deployment.
