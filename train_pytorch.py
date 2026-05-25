@@ -77,9 +77,14 @@ def evaluate(model, loader, name=""):
     return acc
 
 # ── Model / loss / optimizer ──────────────────────────────────────────────────
+# Class weights compensate for 2.5:1 normal-to-TB imbalance.
+# Weight = total_samples / (num_classes * class_count): normal=4900/(2*3500)=0.7, TB=4900/(2*1400)=1.75
+# Normalised to keep gradient scale consistent: [0.7, 1.75] / 0.7 = [1.0, 2.5]
+CLASS_WEIGHTS = torch.tensor([1.0, 2.5]).to(DEVICE)
 model     = TBNet().to(DEVICE)
-criterion = nn.CrossEntropyLoss()
+criterion = nn.CrossEntropyLoss(weight=CLASS_WEIGHTS)
 optimizer = torch.optim.Adam(model.parameters(), lr=LR)
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
 os.makedirs(SAVE_PATH, exist_ok=True)
 
 # ── Training loop ─────────────────────────────────────────────────────────────
@@ -102,6 +107,7 @@ for epoch in range(EPOCHS):
     print(f"\nEpoch [{epoch+1}/{EPOCHS}] Loss: {total_loss/len(train_loader):.4f}  Train Acc: {train_acc:.2f}%")
     val_acc = evaluate(model, val_loader, "Val")
 
+    scheduler.step()
     if val_acc > best_acc:
         best_acc = val_acc
         torch.save(model.state_dict(), os.path.join(SAVE_PATH, 'tbnet_best.pth'))

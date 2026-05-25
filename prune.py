@@ -23,7 +23,7 @@ class TBDataset(Dataset):
     def __len__(self): return len(self.df)
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
-        img = Image.open(os.path.join(self.data_path, row['filename'])).convert('L')
+        img = Image.open(os.path.join(self.data_path, os.path.basename(row['filename']))).convert('L')
         if self.transform: img = self.transform(img)
         return img, int(row['label'])
 
