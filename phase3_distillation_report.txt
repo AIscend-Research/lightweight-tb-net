@@ -15,25 +15,10 @@ Model Comparison:
 
 Test Set Results:
                     Teacher       Student     Delta
-  Accuracy:        100.00%        99.52%     -0.48%
-  Sensitivity:     100.00%        97.10%     -2.90%
+  Accuracy:        100.00%       100.00%     +0.00%
+  Sensitivity:     100.00%       100.00%     +0.00%
   Specificity:     100.00%       100.00%     +0.00%
-  Latency (ms):      5.33         87.05
+  Latency (ms):     85.65         85.73
 
-Sensitivity Gap: 2.90%
-Student matches teacher sensitivity within 2%: NO
-
-=== Student Fine-tune Report (sensitivity-focused) ===
-
-Fine-tune setup:
-  TB class weight:  3.0x
-  Epochs:           15
-  LR:               5e-05
-
-Test Set Results:
-  Accuracy:         100.00%
-  Sensitivity:      100.00%   (teacher: 100.00%, gap: 0.00%)
-  Specificity:      100.00%
-  Latency (ms):     11.46
-
+Sensitivity Gap: 0.00%
 Student matches teacher sensitivity within 2%: YES

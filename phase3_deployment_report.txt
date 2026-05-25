@@ -10,10 +10,10 @@ Export:
   Parameters:      1,519,906 (1.52M)
 
 ONNX Runtime Inference (CPU, 2-thread — mobile proxy):
-  Mean latency:    4.40 ms/image
-  Median latency:  4.33 ms/image
-  Min latency:     4.27 ms/image
-  Max latency:     6.29 ms/image
+  Mean latency:    4.31 ms/image
+  Median latency:  4.29 ms/image
+  Min latency:     4.26 ms/image
+  Max latency:     5.34 ms/image
   Peak RAM:        0.66 MB
 
 Standard Test Set (clean images):
@@ -22,14 +22,14 @@ Standard Test Set (clean images):
   Specificity:     100.00%
 
 Simulated Phone-Capture Test (blur + colour jitter):
-  Accuracy:        17.27%
+  Accuracy:        18.94%
   Sensitivity:     100.00%
-  Specificity:     0.86%
-  Mean latency:    5.10 ms/image
+  Specificity:     2.87%
+  Mean latency:    4.27 ms/image
 
 Smartphone Targets:
   Model < 50 MB:       PASS (6.42 MB)
-  Inference < 2000 ms: PASS (4.40 ms)
+  Inference < 2000 ms: PASS (4.31 ms)
 
 Notes:
   - Benchmarked on Apple Silicon CPU with 2 threads to simulate
