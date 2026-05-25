@@ -1,0 +1,29 @@
+
+=== Phase 2 Benchmark Report ===
+
+System Info:
+  OS:          Darwin 23.6.0
+  Processor:   arm
+  Device:      mps
+  CUDA:        Not available (CPU/MPS)
+  PyTorch:     2.12.0
+
+Model Info:
+  Parameters:  11,505,859 (11.51M)
+  Model size:  46.02 MB (FP32)
+
+Inference Latency (per image):
+  Mean:        3.36 ms
+  Median:      2.88 ms
+  Min:         2.74 ms
+  Max:         174.90 ms
+
+Test Set Results:
+  Accuracy:    100.00%  (paper: 99.86%)
+  Sensitivity: 100.00%  (paper: 100.00%)
+  Specificity: 100.00%  (paper: 99.71%)
+
+Delta from Paper:
+  Accuracy:    +0.14%
+  Sensitivity: +0.00%
+  Specificity: +0.29%
