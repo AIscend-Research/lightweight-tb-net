@@ -134,3 +134,4 @@ dmypy.json
 .pyre/
 data/ 
 models/_tmp*.pth 
+roadmap.txt
