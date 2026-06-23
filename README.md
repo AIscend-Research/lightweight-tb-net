@@ -24,13 +24,12 @@ The original paper: [TB-Net: A Tailored, Self-Attention Deep Convolutional Neura
 │   ├── make_splits.py            70/15/15 train/val/test split generation
 │   ├── visualize_results.py      regenerates figures/
 │   └── _tf1_reference/           original TF1 code (not runnable; for reference)
-├── notebooks/
-│   └── reproduce_extensions.ipynb   75% pruning + phone-capture eval (Kaggle)
 ├── data_splits/                ← train/val/test CSVs
 ├── models/                     ← trained .pth checkpoints
 ├── deploy/                     ← exported .onnx files (deployment artifacts)
 ├── figures/                    ← every figure referenced by the paper
-├── extensions/                 ← Kaggle run outputs (results CSVs + figures)
+├── extensions/                 ← Kaggle notebook + run outputs (CSVs, figures)
+│   └── reproduce_extensions.ipynb   75% pruning + phone-capture eval
 └── example_inputs/             ← sample CXRs for inference demos
 ```
 
@@ -83,7 +82,7 @@ Checkpoints land in `models/`, ONNX exports in `deploy/`.
 
 ### 4. Reproduce the extensions (75 % pruning + phone-capture)
 
-Open `notebooks/reproduce_extensions.ipynb` on Kaggle with a free T4 GPU. Attach two datasets:
+Open `extensions/reproduce_extensions.ipynb` on Kaggle with a free T4 GPU. Attach two datasets:
 
 - `tawsifurrahman/tuberculosis-tb-chest-xray-dataset` (public)
 - a private dataset containing the contents of `src/`, `models/`, and `data_splits/` (the notebook auto-detects the layout)
