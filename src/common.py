@@ -245,11 +245,29 @@ def state_dict_size_mb(path):
 
 
 def append_result(csv_name, row):
-    """Append one result row to results/<csv_name>, creating it if needed."""
+    """
+    Append one result row to results/<csv_name>, creating it if needed.
+
+    Rows from different stages do not always carry the same keys (one-shot
+    pruning reports acc_pre_ft, iterative pruning does not). A plain append
+    would write those values positionally under the first row's header and
+    silently shift every later column, so the existing header is read back and
+    the row is aligned to it, widening the file if genuinely new keys appear.
+    """
     os.makedirs(RESULTS_DIR, exist_ok=True)
     path = os.path.join(RESULTS_DIR, csv_name)
-    df = pd.DataFrame([row])
-    df.to_csv(path, mode="a", header=not os.path.exists(path), index=False)
+    if not os.path.exists(path):
+        pd.DataFrame([row]).to_csv(path, index=False)
+        return path
+
+    existing = pd.read_csv(path)
+    new_keys = [k for k in row if k not in existing.columns]
+    if new_keys:
+        combined = pd.concat([existing, pd.DataFrame([row])], ignore_index=True)
+        combined.to_csv(path, index=False)
+    else:
+        aligned = {c: row.get(c, "") for c in existing.columns}
+        pd.DataFrame([aligned]).to_csv(path, mode="a", header=False, index=False)
     return path
 
 
