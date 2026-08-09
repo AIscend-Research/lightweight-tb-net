@@ -210,12 +210,24 @@ def compute_metrics(y_true, y_prob, threshold=0.5, n_boot=1000, seed=0):
     return out
 
 
+def model_dtype(model):
+    """
+    Input dtype a model expects. FP16 variants need half inputs; dynamically
+    quantized models keep float32 parameters, so they fall through correctly.
+    """
+    for p in model.parameters():
+        if p.is_floating_point():
+            return p.dtype
+    return torch.float32
+
+
 @torch.no_grad()
 def evaluate(model, loader, device, threshold=0.5, n_boot=1000):
     model.eval()
+    dtype = model_dtype(model)
     labels, probs = [], []
     for x, y in loader:
-        logits = model(x.to(device))
+        logits = model(x.to(device=device, dtype=dtype))
         p = torch.softmax(logits.float(), dim=1)[:, 1]
         probs.extend(p.cpu().numpy().tolist())
         labels.extend(y.numpy().tolist())

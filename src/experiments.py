@@ -29,8 +29,8 @@ from torch.utils.data import DataLoader
 
 import common
 from common import (CachedTBDataset, append_result, count_params, evaluate,
-                    loader_generator, phone_perturb, seed_worker, set_seed,
-                    stage_done)
+                    loader_generator, model_dtype, phone_perturb, seed_worker,
+                    set_seed, stage_done)
 from models_repro import build_model, build_student
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -145,9 +145,10 @@ def dump_probs(model, dataset, tag, device=DEVICE):
     """
     dl = DataLoader(dataset, batch_size=64, shuffle=False, num_workers=2)
     model.eval()
+    dtype = model_dtype(model)
     probs = []
     for x, _ in dl:
-        logits = model(x.to(device))
+        logits = model(x.to(device=device, dtype=dtype))
         probs.extend(torch.softmax(logits.float(), dim=1)[:, 1].cpu().numpy().tolist())
     out_dir = os.path.join(common.RESULTS_DIR, "probs")
     os.makedirs(out_dir, exist_ok=True)
@@ -487,8 +488,9 @@ def stage_external(args):
             model.eval()
             probs = []
             with torch.no_grad():
+                dtype = model_dtype(model)
                 for i in range(0, len(x), 64):
-                    logits = model(x[i:i + 64].to(DEVICE))
+                    logits = model(x[i:i + 64].to(device=DEVICE, dtype=dtype))
                     probs.extend(torch.softmax(logits, 1)[:, 1].cpu().numpy())
             probs = np.array(probs)
             for subset in ("all", "montgomery", "shenzhen"):
