@@ -1,5 +1,0 @@
-,,acc,acc,acc,sens,sens,sens,spec,spec,spec,auc,auc,auc,size_mb,size_mb,size_mb
-,,mean,std,count,mean,std,count,mean,std,count,mean,std,count,mean,std,count
-mode,pretrained,,,,,,,,,,,,,,,
-distilled,1,93.4762,4.8754,5,97.7143,1.6288,5,92.6286,5.9673,5,0.9943,0.0034,5,5.9287,0.0,5
-scratch,1,93.381,6.6633,5,97.7143,1.9166,5,92.5143,8.3529,5,0.9977,0.001,5,5.9282,0.0,5

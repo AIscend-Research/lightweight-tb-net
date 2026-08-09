@@ -1,7 +1,0 @@
-,,,acc,acc,acc,sens,sens,sens,spec,spec,spec,auc,auc,auc,size_mb,size_mb,size_mb
-,,,mean,std,count,mean,std,count,mean,std,count,mean,std,count,mean,std,count
-arch,base,quant,,,,,,,,,,,,,,,
-compact,fp32,fp16,98.8571,0.7023,5,95.7143,1.4286,5,99.4857,0.6821,5,0.9958,0.0031,5,0.5472,0.0,5
-compact,fp32,int8_dynamic,98.8571,0.7023,5,95.7143,1.4286,5,99.4857,0.6821,5,0.9958,0.003,5,0.8226,0.0,5
-compact,pruned25,fp16,99.1905,0.2715,5,96.0,0.6389,5,99.8286,0.2556,5,0.9979,0.0013,5,0.5475,0.0,5
-compact,pruned25,int8_dynamic,99.1905,0.2715,5,96.0,0.6389,5,99.8286,0.2556,5,0.9979,0.0013,5,0.8231,0.0,5

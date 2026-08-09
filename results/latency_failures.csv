@@ -1,0 +1,11 @@
+arch,seed,base,error
+compact,0,fp32,No module named 'onnxruntime'
+compact,0,pruned25,No module named 'onnxruntime'
+compact,1,fp32,No module named 'onnxruntime'
+compact,1,pruned25,No module named 'onnxruntime'
+compact,2,fp32,No module named 'onnxruntime'
+compact,2,pruned25,No module named 'onnxruntime'
+compact,3,fp32,No module named 'onnxruntime'
+compact,3,pruned25,No module named 'onnxruntime'
+compact,4,fp32,No module named 'onnxruntime'
+compact,4,pruned25,No module named 'onnxruntime'

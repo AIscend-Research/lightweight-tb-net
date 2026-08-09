@@ -223,9 +223,37 @@ def fig_external():
     save(fig, "external_auc.png")
 
 
+def fig_learning_curves():
+    """Is the larger model still improving when training stops?"""
+    rows = load("history.csv")
+    if not rows:
+        return
+    for r in rows:
+        r["arch"] = r["tag"].split("/")[0]
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.4))
+    for arch in ("compact", "full"):
+        sub = [r for r in rows if r["arch"] == arch]
+        if not sub:
+            continue
+        for ax, col in zip(axes, ("val_sens", "train_loss")):
+            g = agg(sub, ["epoch"], col)
+            pts = sorted((int(k[0]), v) for k, v in g.items())
+            ax.errorbar([p[0] for p in pts], [p[1][0] for p in pts],
+                        yerr=[p[1][1] for p in pts], fmt="-o", capsize=3,
+                        color=COLORS[arch], label=arch)
+    axes[0].set_ylabel("validation sensitivity (%)")
+    axes[1].set_ylabel("training loss")
+    for ax in axes:
+        ax.set_xlabel("epoch")
+        ax.grid(alpha=0.3)
+        ax.legend(fontsize=8)
+    fig.suptitle("Learning curves: a line still rising at the right edge is undertrained")
+    save(fig, "learning_curves.png")
+
+
 if __name__ == "__main__":
     for f in (fig_baseline, fig_pruning, fig_distill, fig_quantize,
-              fig_phone, fig_roc, fig_external):
+              fig_phone, fig_roc, fig_external, fig_learning_curves):
         try:
             f()
         except Exception as exc:                      # noqa: BLE001

@@ -199,7 +199,7 @@ a port, and no claim of architectural fidelity should be made for it.
 
 ## 13. External validation scores below chance
 
-**Status: open, diagnostics added**
+**Status: open, one cause eliminated**
 
 On Montgomery and Shenzhen the compact model reaches AUC 0.32 +/- 0.02 overall
 and 0.29 +/- 0.03 on Shenzhen alone, well below the 0.5 expected from random
@@ -220,29 +220,83 @@ Three candidates, each now testable:
    explain a sub-chance AUC, but it decides whether the stage is external at
    all.
 
-Nothing from this stage should be published until item 1 comes back OK.
+**Verdict on item 1: labels are correct.** The parsed balance is exactly the
+published one, Montgomery 80 normal / 58 TB and Shenzhen 326 / 336, so the
+`_0`/`_1` convention is being read the right way round and an inverted label
+does not explain the sub-chance AUC. Suspicion moves to preprocessing
+(`figures/external_preprocessing_check.png` renders external and training
+images side by side through the same pipeline) or to something genuinely odd
+about how these models rank NLM scans. Still unresolved, still unpublishable.
 
 ---
 
 ## 14. ONNX export failed, so there is no latency measurement
 
-**Status: fix attempted, unverified**
+**Status: root cause found, not yet fixed**
 
 The export is wrapped in a try/except so a failure does not abort the run. It
 failed on every model under torch 2.10 and produced no `.onnx` files, so
 `latency.csv` was never written. Every deployment-latency statement is
 currently unsupported by measurement.
 
-The original call passed `opset_version=13` with `dynamic_axes=None`, and the
-underlying error was never recorded because only `str(exc)` was printed.
-`onnx_latency` now tries three exporter configurations in order (legacy at
-opset 17, the torch 2.6+ dynamo exporter, legacy at opset 13), prints the full
-traceback, and records failures to `results/latency_failures.csv`. Which
-configuration works, if any, is unverified until the next run.
+Once the error was actually recorded it turned out to be mundane:
+`No module named 'onnxruntime'`. The package is imported at the top of
+`onnx_latency`, before any export is attempted, and `reproduce.ipynb`
+pip-installs it while `finish_run.ipynb` does not. Nothing was ever wrong with
+the exporter.
+
+This is worth recording as a process failure rather than a coding one. The
+`except Exception` around the export turned a missing dependency into what
+looked like a torch-version incompatibility, and a whole hypothesis about
+opset versions and the dynamo exporter was built on top of a message nobody
+had read. Broad exception handlers that print only `str(exc)` cost more than
+they save.
+
+Fix: install `onnxruntime` in `finish_run.ipynb` and rerun the quantize stage.
+The multi-configuration export path added earlier is harmless but was aimed at
+the wrong problem.
 
 ---
 
-## 15. Stale repository URL
+## 15. The overlap check matches far too loosely
+
+**Status: open, results not usable**
+
+`--stage overlap` reported that 641 of 800 external images match a
+training-cohort image at dHash Hamming distance 5 or less. That is not
+credible: 302 of those matches pair a TB-positive external image with a file
+named `Normal-*`, and an 80% duplicate rate between two separately published
+cohorts is implausible on its face.
+
+The cause is the hash, not the data. A 64-bit difference hash of a chest
+radiograph downsampled to 9x8 encodes gross thoracic structure, which every
+chest X-ray shares, so a Hamming radius of 5 matches almost anything. The
+first dictionary hit is also returned arbitrarily among near-matches, so
+`matched_training_file` is not meaningful.
+
+The question the stage was built to answer is still open. A usable version
+needs exact-hash matching, or a stricter radius validated against known
+duplicates, or a proper embedding distance rather than a perceptual hash.
+
+
+## 16. A forced re-run silently dropped an experimental arm
+
+**Status: fixed by merge, worth remembering**
+
+`finish_run.ipynb` deletes a stage CSV before re-running it, so that forced
+rows replace rather than append. Task D re-ran the baseline stage without the
+class-weighted condition, so `reset("baseline.csv")` removed the five weighted
+rows and nothing put them back. The finding they support, that inverse
+frequency weighting reduces AUC with all five seeds agreeing, would have
+vanished from the analysis without any error.
+
+The rows were recovered from the repository copy and merged, giving 30 rows:
+25 from the new run plus the 5 weighted. The general lesson is that
+delete-then-regenerate is only safe when the regenerating command covers every
+condition the file already held.
+
+
+## 17. Stale repository URL
 
 **Status: fixed**
 

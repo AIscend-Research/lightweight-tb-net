@@ -1,5 +1,5 @@
 {
-  "commit": "a6594f826bd4a66c3c7eebbc4a33c86c424c0397",
+  "commit": "6e2e4df63701453424056fde4f5c8feb4289c6cc",
   "repo": "https://github.com/AIscend-Research/lightweight-tb-net",
   "seeds": [
     0,
@@ -18,15 +18,11 @@
   ],
   "data_path": "/kaggle/input/datasets/tawsifurrahman/tuberculosis-tb-chest-xray-dataset/TB_Chest_Radiography_Database",
   "external_path": "/kaggle/input/datasets/kmader/pulmonary-chest-xray-abnormalities",
-  "env": {
-    "python": "3.12.13",
-    "torch": "2.10.0+cu128",
-    "cuda": "12.8",
-    "cudnn": 91002,
-    "gpu": "Tesla T4",
-    "numpy": "2.0.2",
-    "pandas": "2.3.3",
-    "sklearn": "1.6.1",
-    "cv2": "4.13.0"
-  }
+  "tasks": {
+    "external": true,
+    "overlap": true,
+    "onnx": true,
+    "curves": true
+  },
+  "long_epochs": 30
 }

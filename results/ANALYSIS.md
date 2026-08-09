@@ -7,12 +7,12 @@ in `figures/` is derived from the same files.
 
 | field | value |
 |---|---|
-| commit | a6594f826bd4 |
+| commit | 6e2e4df63701 |
 | seeds | [0, 1, 2, 3, 4] |
 | architectures | ['compact', 'full'] |
 | preprocessing | ['faithful', 'simple'] |
-| torch | 2.10.0+cu128 |
-| GPU | Tesla T4 |
+| torch | ? |
+| GPU | ? |
 | splits | 3360 train / 420 val / 420 test, leak-checked |
 
 ## 1. Baselines
@@ -22,7 +22,7 @@ in `figures/` is derived from the same files.
 | compact | faithful | False | 98.81 +/- 0.81 | 95.71 +/- 1.43 | 99.43 +/- 0.81 | 0.9958 +/- 0.0030 |
 | compact | faithful | True | 94.67 +/- 5.16 | 94.86 +/- 2.60 | 94.63 +/- 5.88 | 0.9859 +/- 0.0122 |
 | compact | simple | False | 98.76 +/- 0.54 | 96.29 +/- 3.29 | 99.26 +/- 0.56 | 0.9991 +/- 0.0006 |
-| full | faithful | False | 92.14 +/- 3.97 | 88.29 +/- 3.96 | 92.91 +/- 5.23 | 0.9731 +/- 0.0105 |
+| full | faithful | False | 89.60 +/- 7.55 | 91.00 +/- 4.15 | 89.31 +/- 9.52 | 0.9741 +/- 0.0129 |
 | full | simple | False | 96.33 +/- 3.33 | 98.29 +/- 1.20 | 95.94 +/- 4.09 | 0.9976 +/- 0.0022 |
 
 Sensitivity is the metric of record: the test split is 350 normal to
@@ -146,7 +146,7 @@ TB triage tools is 90% sensitivity at 70% specificity.
 | arch | AUC | sensitivity at 95% specificity | sensitivity at 90% specificity |
 |---|---|---|---|
 | compact | 0.9958 +/- 0.0030 | 98.00 +/- 1.63 | 98.29 +/- 1.20 |
-| full | 0.9731 +/- 0.0105 | 86.86 +/- 3.26 | 90.29 +/- 2.75 |
+| full | 0.9752 +/- 0.0162 | 89.14 +/- 2.60 | 92.57 +/- 3.96 |
 
 ## 8. Pruning: paired comparisons
 
@@ -163,7 +163,7 @@ calibrated, not merely well ranked. Brier score is lower-is-better.
 | arch | Brier score |
 |---|---|
 | compact | 0.0126 +/- 0.0076 |
-| full | 0.0579 +/- 0.0247 |
+| full | 0.1118 +/- 0.0894 |
 
 Reliability for compact, seed 0:
 
