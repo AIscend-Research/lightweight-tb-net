@@ -2,7 +2,7 @@
 
 **Authors:** Adithya Balakumar and Jonathan Liu
 **Date:** May 2026
-**Repository:** https://github.com/adithyabalakumar007-ai/lightweight-tb-net
+**Repository:** https://github.com/AIscend-Research/lightweight-tb-net
 
 \---
 
