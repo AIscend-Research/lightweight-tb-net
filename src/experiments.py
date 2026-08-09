@@ -27,9 +27,10 @@ import torch.nn.functional as F
 import torch.nn.utils.prune as prune
 from torch.utils.data import DataLoader
 
-from common import (CachedTBDataset, RESULTS_DIR, append_result, count_params,
-                    evaluate, loader_generator, phone_perturb, seed_worker,
-                    set_seed, stage_done)
+import common
+from common import (CachedTBDataset, append_result, count_params, evaluate,
+                    loader_generator, phone_perturb, seed_worker, set_seed,
+                    stage_done)
 from models_repro import build_model, build_student
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -48,12 +49,12 @@ def make_loaders(cache, seed, batch_size=32, three_channel=False,
                             perturb=train_perturb, perturb_seed=seed, **kw)
     val = CachedTBDataset(SPLITS["val"], **kw)
     test = CachedTBDataset(SPLITS["test"], **kw)
-    common = dict(num_workers=2, worker_init_fn=seed_worker,
-                  generator=loader_generator(seed), pin_memory=True)
+    dl_kw = dict(num_workers=2, worker_init_fn=seed_worker,
+                 generator=loader_generator(seed), pin_memory=True)
     return (
-        DataLoader(train, batch_size=batch_size, shuffle=True, **common),
-        DataLoader(val, batch_size=batch_size, shuffle=False, **common),
-        DataLoader(test, batch_size=batch_size, shuffle=False, **common),
+        DataLoader(train, batch_size=batch_size, shuffle=True, **dl_kw),
+        DataLoader(val, batch_size=batch_size, shuffle=False, **dl_kw),
+        DataLoader(test, batch_size=batch_size, shuffle=False, **dl_kw),
     )
 
 
@@ -122,6 +123,29 @@ def size_mb(path):
     return os.path.getsize(path) / (1024 ** 2)
 
 
+@torch.no_grad()
+def dump_probs(model, dataset, tag, device=DEVICE):
+    """
+    Persist per-sample TB probabilities.
+
+    With these on disk, ROC curves, operating-point selection (paper §5.8),
+    paired bootstrap comparisons between models and DeLong tests are all
+    plain post-processing - no retraining and no re-inference needed.
+    """
+    dl = DataLoader(dataset, batch_size=64, shuffle=False, num_workers=2)
+    model.eval()
+    probs = []
+    for x, _ in dl:
+        logits = model(x.to(device))
+        probs.extend(torch.softmax(logits.float(), dim=1)[:, 1].cpu().numpy().tolist())
+    out_dir = os.path.join(common.RESULTS_DIR, "probs")
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, f"{tag}.csv")
+    pd.DataFrame({"filename": dataset.files, "label": dataset.labels,
+                  "prob": probs}).to_csv(path, index=False)
+    return path
+
+
 # ── Stage: audit existing checkpoints ────────────────────────────────────────
 
 def stage_audit(args):
@@ -181,6 +205,7 @@ def stage_baseline(args):
                     name = f"{arch}_{cache}{'_w' if weighted else ''}_s{seed}"
                     path = save_ckpt(model, name)
                     m = evaluate(model, te, DEVICE)
+                    dump_probs(model, te.dataset, name)
                     append_result("baseline.csv", {
                         "arch": arch, "cache": cache, "weighted": weighted,
                         "seed": seed, "params": count_params(model),
@@ -205,10 +230,34 @@ def prunable(model):
             if isinstance(m, (nn.Conv2d, nn.Linear))]
 
 
-def apply_prune(model, amount):
-    prune.global_unstructured(prunable(model),
-                              pruning_method=prune.L1Unstructured,
-                              amount=amount)
+def apply_prune(model, amount, structured=False):
+    """
+    structured=False: global L1 unstructured. Zeroes individual weights, so the
+        .pth file size does not change - the point paper section 4.3 makes.
+    structured=True: per-layer L1 filter pruning (whole output channels). The
+        tensors keep their shape here too, but every zeroed filter is a channel
+        that a compaction pass could physically remove, so the FLOP reduction
+        is real in a way unstructured sparsity is not.
+    """
+    if not structured:
+        prune.global_unstructured(prunable(model),
+                                  pruning_method=prune.L1Unstructured,
+                                  amount=amount)
+        return
+    for m, name in prunable(model):
+        if isinstance(m, nn.Conv2d) and m.weight.shape[0] > 1 and m.groups == 1:
+            prune.ln_structured(m, name, amount=amount, n=1, dim=0)
+
+
+def channel_sparsity(model):
+    """Fraction of output filters that are entirely zero."""
+    tot = dead = 0
+    for m, _ in prunable(model):
+        if isinstance(m, nn.Conv2d):
+            w = m.weight.detach()
+            tot += w.shape[0]
+            dead += int((w.flatten(1).abs().sum(1) == 0).sum())
+    return 100.0 * dead / max(tot, 1)
 
 
 def strip_masks(model):
@@ -234,22 +283,30 @@ def stage_prune(args):
         for seed in args.seeds:
             tr, va, te = make_loaders(cache, seed)
 
-            # One-shot pruning at each sparsity level.
-            for amount in (0.25, 0.50, 0.75):
-                set_seed(seed)
-                model, _ = load_baseline(arch, cache, seed)
-                apply_prune(model, amount)
-                pre = evaluate(model, te, DEVICE, n_boot=0)
-                model = fit(model, tr, va, args.ft_epochs, lr=args.lr,
-                            tag=f"prune{int(amount * 100)}/{arch}/s{seed}")
-                strip_masks(model)
-                path = save_ckpt(model, f"{arch}_prune{int(amount * 100)}_s{seed}")
-                m = evaluate(model, te, DEVICE)
-                append_result("prune.csv", {
-                    "arch": arch, "seed": seed, "schedule": "one-shot",
-                    "target_sparsity": amount, "actual_sparsity": sparsity(model),
-                    "acc_pre_ft": pre["acc"], "sens_pre_ft": pre["sens"],
-                    "size_mb": size_mb(path), **m})
+            # One-shot pruning at each sparsity level, unstructured and
+            # structured. Structured is the variant that can actually shrink
+            # the model, which is the paper's stated deployment goal.
+            for structured in (False, True):
+                kind = "structured" if structured else "unstructured"
+                for amount in (0.25, 0.50, 0.75):
+                    set_seed(seed)
+                    model, _ = load_baseline(arch, cache, seed)
+                    apply_prune(model, amount, structured=structured)
+                    pre = evaluate(model, te, DEVICE, n_boot=0)
+                    model = fit(model, tr, va, args.ft_epochs, lr=args.lr,
+                                tag=f"{kind[:6]}{int(amount * 100)}/{arch}/s{seed}")
+                    strip_masks(model)
+                    name = f"{arch}_{kind}{int(amount * 100)}_s{seed}"
+                    path = save_ckpt(model, name)
+                    m = evaluate(model, te, DEVICE)
+                    dump_probs(model, te.dataset, name)
+                    append_result("prune.csv", {
+                        "arch": arch, "seed": seed, "schedule": "one-shot",
+                        "kind": kind, "target_sparsity": amount,
+                        "actual_sparsity": sparsity(model),
+                        "channel_sparsity": channel_sparsity(model),
+                        "acc_pre_ft": pre["acc"], "sens_pre_ft": pre["sens"],
+                        "size_mb": size_mb(path), **m})
 
             # Iterative pruning to 75%: the paper speculates this recovers
             # better than one-shot; here it is actually measured.
@@ -264,8 +321,10 @@ def stage_prune(args):
             m = evaluate(model, te, DEVICE)
             append_result("prune.csv", {
                 "arch": arch, "seed": seed, "schedule": "iterative",
+                "kind": "unstructured",
                 "target_sparsity": 1 - (1 - args.iter_amount) ** args.iter_steps,
                 "actual_sparsity": sparsity(model),
+                "channel_sparsity": channel_sparsity(model),
                 "size_mb": size_mb(path), **m})
 
 
@@ -288,6 +347,7 @@ def stage_distill(args):
                           cosine=True, tag=f"{mode}/s{seed}")
             path = save_ckpt(student, f"student_{mode}_s{seed}")
             m = evaluate(student, te, DEVICE)
+            dump_probs(student, te.dataset, f"student_{mode}_s{seed}")
             append_result("distill.csv", {
                 "mode": mode, "seed": seed, "teacher": tname,
                 "pretrained": args.pretrained_student,
@@ -326,7 +386,7 @@ def stage_quantize(args):
         _, _, te = make_loaders(cache, seed)
 
         variants = {"fp32": load_baseline(arch, cache, seed)[0]}
-        p25 = os.path.join(CKPT_DIR, f"{arch}_prune25_s{seed}.pth")
+        p25 = os.path.join(CKPT_DIR, f"{arch}_unstructured25_s{seed}.pth")
         if os.path.exists(p25):
             m = build_model(arch)
             m.load_state_dict(torch.load(p25, map_location="cpu"))
@@ -454,6 +514,7 @@ def stage_phone(args):
                                      perturb_seed=1234)
                 dl = DataLoader(ds, batch_size=64, num_workers=2)
                 m = evaluate(model, dl, DEVICE)
+                dump_probs(model, ds, f"{name}__{cond}")
                 append_result("phone.csv", {
                     "arch": arch, "seed": seed, "checkpoint": name,
                     "training": "clean", "condition": cond, **m})
@@ -487,7 +548,7 @@ def stage_summary(args):
     out = {}
     specs = {
         "baseline.csv": ["arch", "cache", "weighted"],
-        "prune.csv": ["arch", "schedule", "target_sparsity"],
+        "prune.csv": ["arch", "schedule", "kind", "target_sparsity"],
         "distill.csv": ["mode", "pretrained"],
         "quantize.csv": ["arch", "base", "quant"],
         "latency.csv": ["arch", "base"],
@@ -495,19 +556,20 @@ def stage_summary(args):
         "phone.csv": ["arch", "training", "condition"],
     }
     for fname, keys in specs.items():
-        path = os.path.join(RESULTS_DIR, fname)
+        path = os.path.join(common.RESULTS_DIR, fname)
         if not os.path.exists(path):
             continue
         df = pd.read_csv(path)
         keys = [k for k in keys if k in df.columns]
         metrics = [c for c in ("acc", "sens", "spec", "auc", "size_mb",
-                               "lat_ms_median", "actual_sparsity")
+                               "lat_ms_median", "actual_sparsity",
+                               "channel_sparsity")
                    if c in df.columns]
         agg = df.groupby(keys)[metrics].agg(["mean", "std", "count"]).round(4)
-        agg.to_csv(os.path.join(RESULTS_DIR, f"summary_{fname}"))
+        agg.to_csv(os.path.join(common.RESULTS_DIR, f"summary_{fname}"))
         out[fname] = agg
         print(f"\n=== {fname} ===\n{agg}")
-    with open(os.path.join(RESULTS_DIR, "environment.json"), "w") as fh:
+    with open(os.path.join(common.RESULTS_DIR, "environment.json"), "w") as fh:
         json.dump({
             "torch": torch.__version__,
             "cuda": torch.version.cuda,
