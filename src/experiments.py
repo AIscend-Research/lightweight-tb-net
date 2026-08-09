@@ -43,10 +43,11 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # ── Data ─────────────────────────────────────────────────────────────────────
 
 def make_loaders(cache, seed, batch_size=32, three_channel=False,
-                 augment_train=False, train_perturb=None):
+                 augment_train=False, train_perturb=None, dual_train=False):
     kw = dict(cache_name=cache, three_channel=three_channel)
     train = CachedTBDataset(SPLITS["train"], augment=augment_train,
-                            perturb=train_perturb, perturb_seed=seed, **kw)
+                            perturb=train_perturb, perturb_seed=seed,
+                            dual=dual_train, **kw)
     val = CachedTBDataset(SPLITS["val"], **kw)
     test = CachedTBDataset(SPLITS["test"], **kw)
     dl_kw = dict(num_workers=2, worker_init_fn=seed_worker,
@@ -81,14 +82,24 @@ def fit(model, train_loader, val_loader, epochs, lr=1e-4, weights=None,
     for ep in range(epochs):
         model.train()
         total = 0.0
-        for x, y in train_loader:
-            x, y = x.to(DEVICE, non_blocking=True), y.to(DEVICE, non_blocking=True)
+        for batch in train_loader:
+            # A dual dataset yields (teacher_input, student_input, label); a
+            # normal one yields (input, label) and both models share it.
+            if len(batch) == 3:
+                x_t, x_s, y = batch
+                x_t = x_t.to(DEVICE, non_blocking=True)
+            else:
+                x_s, y = batch
+                x_t = None
+            x_s, y = x_s.to(DEVICE, non_blocking=True), y.to(DEVICE, non_blocking=True)
+            if x_t is None:
+                x_t = x_s
             opt.zero_grad(set_to_none=True)
-            logits = model(x)
+            logits = model(x_s)
             loss = ce(logits, y)
             if teacher is not None:
                 with torch.no_grad():
-                    t_logits = teacher(x)
+                    t_logits = teacher(x_t)
                 soft = F.kl_div(
                     F.log_softmax(logits / temperature, dim=1),
                     F.softmax(t_logits / temperature, dim=1),
@@ -334,7 +345,8 @@ def stage_distill(args):
     cache = args.caches[0]
     teacher_arch = args.arch[0]
     for seed in args.seeds:
-        tr, va, te = make_loaders(cache, seed, three_channel=True)
+        tr, va, te = make_loaders(cache, seed, three_channel=True,
+                                  dual_train=True)
         teacher, tname = load_baseline(teacher_arch, cache, seed)
 
         for mode in ("distilled", "scratch"):
@@ -442,7 +454,11 @@ def stage_external(args):
         return
     paths = sorted(glob.glob(os.path.join(args.external_path, "**", "*.png"),
                              recursive=True))
-    paths = [p for p in paths if os.path.basename(p)[:-4].endswith(("_0", "_1"))]
+    # Montgomery ships left/right lung masks whose filenames match the
+    # radiographs; without this filter the cohort triples (414 vs 138).
+    paths = [p for p in paths
+             if os.path.basename(p)[:-4].endswith(("_0", "_1"))
+             and "mask" not in p.lower()]
     if not paths:
         print(f"no MC/SZ-style images under {args.external_path}; skipping")
         return
