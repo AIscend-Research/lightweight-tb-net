@@ -63,7 +63,7 @@ class CachedTBDataset(Dataset):
     """
 
     def __init__(self, split_csv, cache_name, three_channel=False,
-                 perturb=None, perturb_seed=0, augment=False):
+                 perturb=None, perturb_seed=0, augment=False, dual=False):
         self.arr = np.load(os.path.join(CACHE_DIR, f"{cache_name}.npy"),
                            mmap_mode="r")
         index = pd.read_csv(os.path.join(CACHE_DIR, f"{cache_name}_index.csv"))
@@ -84,6 +84,9 @@ class CachedTBDataset(Dataset):
         self.perturb = perturb
         self.perturb_seed = perturb_seed
         self.augment = augment
+        # dual: yield (1-channel, 3-channel, label) so a distillation batch can
+        # feed the grayscale TBNet teacher and the 3-channel student at once.
+        self.dual = dual
 
     def __len__(self):
         return len(self.files)
@@ -103,18 +106,18 @@ class CachedTBDataset(Dataset):
             if rng.random() < 0.5:
                 img = np.ascontiguousarray(img[:, ::-1])
 
-        x = torch.from_numpy(img.astype(np.float32) / 255.0).unsqueeze(0)
-        x = (x - 0.5) / 0.5
+        gray = torch.from_numpy(img.astype(np.float32) / 255.0).unsqueeze(0)
+        x1 = (gray - 0.5) / 0.5                       # TBNet input
 
-        if self.three_channel:
+        if self.three_channel or self.dual:
             # MobileNetV3 expects 3 channels with ImageNet statistics.
-            x = x * 0.5 + 0.5
-            x = x.repeat(3, 1, 1)
             mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
             std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
-            x = (x - mean) / std
+            x3 = (gray.repeat(3, 1, 1) - mean) / std
 
-        return x, self.labels[idx]
+        if self.dual:
+            return x1, x3, self.labels[idx]
+        return (x3 if self.three_channel else x1), self.labels[idx]
 
 
 # ── Phone-capture perturbation ───────────────────────────────────────────────
