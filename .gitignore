@@ -139,10 +139,10 @@ roadmap.txt
 # Generated at run time by reproduce.ipynb / src/experiments.py
 cache/
 checkpoints/
-data_splits/
 deploy_repro/
 artifacts/
 
 # Downloaded Kaggle run bundle (checkpoints; keep out of git, publish to Zenodo)
 artifacts.zip
 artifacts/
+

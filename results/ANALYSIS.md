@@ -148,7 +148,44 @@ TB triage tools is 90% sensitivity at 70% specificity.
 | compact | 0.9958 +/- 0.0030 | 98.00 +/- 1.63 | 98.29 +/- 1.20 |
 | full | 0.9731 +/- 0.0105 | 86.86 +/- 3.26 | 90.29 +/- 2.75 |
 
-## 8. Open issues
+## 8. Pruning: paired comparisons
+
+| comparison | d AUC | d sensitivity | 95% CI on d AUC | seeds favouring A | CI excludes 0 |
+|---|---|---|---|---|---|
+| 25% pruned - unpruned baseline | 0.212 +/- 0.272 pp | 0.29 +/- 1.56 pp | [0.00, 0.28] | 4/5 | no |
+| structured 25% - unstructured 25% | -0.336 +/- 0.391 pp | -0.86 +/- 2.96 pp | [-1.82, 0.02] | 2/5 | no |
+
+## 9. Calibration
+
+A screening tool whose scores are read as probabilities has to be
+calibrated, not merely well ranked. Brier score is lower-is-better.
+
+| arch | Brier score |
+|---|---|
+| compact | 0.0126 +/- 0.0076 |
+| full | 0.0579 +/- 0.0247 |
+
+Reliability for compact, seed 0:
+
+| predicted bin | n | mean predicted | observed frequency |
+|---|---|---|---|
+| 0.0-0.2 | 344 | 0.015 | 0.009 |
+| 0.2-0.4 | 9 | 0.289 | 0.111 |
+| 0.4-0.6 | 2 | 0.514 | 0.500 |
+| 0.6-0.8 | 7 | 0.703 | 1.000 |
+| 0.8-1.0 | 58 | 0.975 | 1.000 |
+
+## 10. Consistently missed cases
+
+Of the 70 TB images in the test split, 1 is missed by all 5 seeds and 7 by at least one. Cases missed
+by every seed are the ones worth looking at by eye: they are either
+genuinely hard or mislabelled.
+
+| file | probability (last seed) |
+|---|---|
+| Tuberculosis-492.png | 0.072 |
+
+## 11. Open issues
 
 - External validation is below chance and unexplained (section 6).
 - No latency measurement: the ONNX export failed (section 4).

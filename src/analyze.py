@@ -68,6 +68,24 @@ def sens_at_spec(labels, probs, target_spec=95.0):
     return best
 
 
+def brier(labels, probs):
+    return sum((p - y) ** 2 for y, p in zip(labels, probs)) / max(len(labels), 1)
+
+
+def reliability(labels, probs, bins=5):
+    """Mean predicted probability against observed frequency, per bin."""
+    out = []
+    for b in range(bins):
+        lo, hi = b / bins, (b + 1) / bins
+        sel = [(y, p) for y, p in zip(labels, probs)
+               if (p >= lo and p < hi) or (b == bins - 1 and p == 1.0)]
+        if sel:
+            out.append((f"{lo:.1f}-{hi:.1f}", len(sel),
+                        st.mean(p for _, p in sel),
+                        st.mean(y for y, _ in sel)))
+    return out
+
+
 def agg(rows, keys, metrics):
     g = defaultdict(lambda: defaultdict(list))
     for r in rows:
@@ -367,7 +385,80 @@ def main():
     table(w, ["arch", "AUC", "sensitivity at 95% specificity",
               "sensitivity at 90% specificity"], op)
 
-    w("## 8. Open issues")
+    # ---- pruning paired comparisons
+    w("## 8. Pruning: paired comparisons")
+    w("")
+    rowsp = []
+    for a, b, la, lb in (
+            ("compact_unstructured25_s{s}", "compact_faithful_s{s}",
+             "25% pruned", "unpruned baseline"),
+            # needs results/probs/compact_pruneiter_s*.csv, which only exists
+            # from runs after the iterative branch started dumping probabilities
+            ("compact_pruneiter_s{s}", "compact_unstructured75_s{s}",
+             "iterative 75%", "one-shot 75%"),
+            ("compact_structured25_s{s}", "compact_unstructured25_s{s}",
+             "structured 25%", "unstructured 25%")):
+        c = paired_compare(a, b, seeds, la, lb)
+        if c:
+            rowsp.append([c["label"], f"{fmt(c['diffs']['auc'], 3)} pp",
+                          f"{fmt(c['diffs']['sens'])} pp",
+                          f"[{c['ci'][0]:.2f}, {c['ci'][1]:.2f}]",
+                          f"{c['wins']}/{c['n']}",
+                          "yes" if c["significant"] else "no"])
+    table(w, ["comparison", "d AUC", "d sensitivity", "95% CI on d AUC",
+              "seeds favouring A", "CI excludes 0"], rowsp)
+
+    # ---- calibration
+    w("## 9. Calibration")
+    w("")
+    w("A screening tool whose scores are read as probabilities has to be")
+    w("calibrated, not merely well ranked. Brier score is lower-is-better.")
+    w("")
+    rowsc = []
+    for arch in ("compact", "full"):
+        bs = []
+        for sd in seeds:
+            pr = read_probs(f"{arch}_faithful_s{sd}")
+            if pr:
+                bs.append(brier(*pr))
+        if bs:
+            rowsc.append([arch, fmt(bs, 4)])
+    table(w, ["arch", "Brier score"], rowsc)
+
+    pr = read_probs(f"compact_faithful_s{seeds[0]}")
+    if pr:
+        w(f"Reliability for compact, seed {seeds[0]}:")
+        w("")
+        table(w, ["predicted bin", "n", "mean predicted", "observed frequency"],
+              [[b, n, f"{mp:.3f}", f"{of:.3f}"]
+               for b, n, mp, of in reliability(*pr)])
+
+    # ---- consistently missed cases
+    w("## 10. Consistently missed cases")
+    w("")
+    missed = defaultdict(int)
+    names = {}
+    for sd in seeds:
+        path = os.path.join(RES, "probs", f"compact_faithful_s{sd}.csv")
+        if not os.path.exists(path):
+            continue
+        for r in csv.DictReader(open(path)):
+            if int(r["label"]) == 1 and float(r["prob"]) < 0.5:
+                missed[r["filename"]] += 1
+                names[r["filename"]] = float(r["prob"])
+    allseeds = [f for f, c in missed.items() if c == len(seeds)]
+    n_pos = sum(1 for f in names if True) and len(allseeds)
+    w(f"Of the 70 TB images in the test split, {len(allseeds)} "
+      f"{'is' if len(allseeds) == 1 else 'are'} missed by all {len(seeds)} "
+      f"seeds and {len(missed)} by at least one. Cases missed")
+    w("by every seed are the ones worth looking at by eye: they are either")
+    w("genuinely hard or mislabelled.")
+    w("")
+    if allseeds:
+        table(w, ["file", "probability (last seed)"],
+              [[f, f"{names[f]:.3f}"] for f in sorted(allseeds)[:20]])
+
+    w("## 11. Open issues")
     w("")
     w("- External validation is below chance and unexplained (section 6).")
     w("- No latency measurement: the ONNX export failed (section 4).")

@@ -9,21 +9,32 @@ four hours, or from the command line on any machine with a GPU.
 
 ## Status
 
-**Results are being regenerated. Do not cite any numbers from this repo's
-history.**
+A complete five-seed run is in `results/`, analysed in
+[results/ANALYSIS.md](results/ANALYSIS.md). Every defect found along the way,
+including two that changed reported numbers, is logged in
+[docs/BUGS.md](docs/BUGS.md).
 
-An earlier version of this study reported roughly 99% accuracy. Those numbers
-were invalid. The train/val/test splits contained 1,400 tuberculosis entries
-drawn from only 700 distinct images, present twice under two naming schemes
-(`Tuberculosis-N.png` and `TB-N.png`). Because the split was taken over rows
-rather than over distinct images, 222 of the 700 TB images appeared in both
-the training set and a held-out set, and 115 of the 140 TB images in the test
-set were duplicates of training images.
+**Do not cite any numbers from this repository's git history.** Two stages
+remain unresolved (external validation scores below chance; ONNX export failed
+so there is no latency measurement), and both are flagged in the analysis.
+
+An earlier version of this study trained on contaminated splits. They listed
+1,400 tuberculosis entries drawn from only 700 distinct images, present twice
+under two naming schemes (`Tuberculosis-N.png` and `TB-N.png`). Because the
+split was taken over rows rather than over distinct images, 222 of the 700 TB
+images appeared in both the training set and a held-out set, and 115 of the
+140 TB images in the old test split were duplicates of training images.
 
 `src/make_splits.py` now keys on a canonical image identity and refuses to
-write splits where any image crosses a split boundary. The corrected dataset
-is 4,200 distinct images (3,500 normal, 700 TB, a 5:1 ratio rather than the
-2.5:1 previously assumed).
+write splits where any image crosses a split boundary. The corrected cohort is
+4,200 distinct images (3,500 normal, 700 TB, a 5:1 ratio rather than the 2.5:1
+previously assumed).
+
+The measured effect of removing the leak was small: 98.81 +/- 0.81 accuracy
+and 95.71 +/- 1.43 sensitivity on clean splits, against 98.57 and 95.71 on the
+contaminated ones. The contamination was real and had to go, but it was not
+what produced the high scores, and reporting that honestly is part of the
+result.
 
 Two further findings shape what this study can claim:
 
@@ -52,12 +63,20 @@ src/
   model.py             the 0.27M-parameter re-implementation
   models_repro.py      model registry: compact and full
   experiments.py       every experiment, as resumable stages
+  analyze.py           results/*.csv -> results/ANALYSIS.md (stdlib only)
+  make_figures.py      results/*.csv -> figures/
   smoke_test.py        full pipeline on synthetic images, about one minute
   _tf1_reference/      original DarwinAI TF1 code, kept as evidence (not runnable)
 ```
 
-Generated directories (`cache/`, `data_splits/`, `checkpoints/`, `results/`)
-are created at run time and are not tracked.
+```
+data_splits/           the exact leak-checked split the results correspond to
+results/               per-run CSVs, per-sample probabilities, ANALYSIS.md
+docs/BUGS.md           every defect found, with status and measured impact
+```
+
+`cache/` and `checkpoints/` are created at run time and are not tracked;
+trained weights belong on Zenodo, not in git.
 
 ## The two datasets
 
@@ -159,6 +178,9 @@ python src/experiments.py --stage quantize --seeds 0 1 2 3 4
 python src/experiments.py --stage external --external-path /path/to/mc_sz
 python src/experiments.py --stage phone    --seeds 0 1 2 3 4 --phone-finetune
 python src/experiments.py --stage summary
+
+python src/analyze.py        # regenerate results/ANALYSIS.md
+python src/make_figures.py   # regenerate figures/
 ```
 
 Each stage writes `results/<stage>.csv` and skips itself if that file exists,

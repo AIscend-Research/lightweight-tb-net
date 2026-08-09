@@ -115,6 +115,12 @@ def fit(model, train_loader, val_loader, epochs, lr=1e-4, weights=None,
         # error, and accuracy hides majority-class collapse.
         if m["sens"] > best_sens:
             best_sens, best_state = m["sens"], copy.deepcopy(model.state_dict())
+        # Learning curves: a model still improving at the last epoch is
+        # undertrained, and that changes how its result should be read.
+        append_result("history.csv", {
+            "tag": tag, "epoch": ep + 1,
+            "train_loss": total / max(len(train_loader), 1),
+            "val_acc": m["acc"], "val_sens": m["sens"], "val_spec": m["spec"]})
         print(f"    [{tag}] ep {ep + 1}/{epochs} loss {total / max(len(train_loader), 1):.4f} "
               f"val acc {m['acc']:.2f} sens {m['sens']:.2f}")
 
@@ -290,6 +296,7 @@ def stage_prune(args):
             strip_masks(model)
             path = save_ckpt(model, f"{arch}_pruneiter_s{seed}")
             m = evaluate(model, te, DEVICE)
+            dump_probs(model, te.dataset, f"{arch}_pruneiter_s{seed}")
             append_result("prune.csv", {
                 "arch": arch, "seed": seed, "schedule": "iterative",
                 "kind": "unstructured",
@@ -334,9 +341,27 @@ def onnx_latency(model, path, n=100, three_channel=False):
     import onnxruntime as ort
     ch = 3 if three_channel else 1
     dummy = torch.randn(1, ch, 224, 224)
-    torch.onnx.export(model.cpu().eval(), dummy, path,
-                      input_names=["input"], output_names=["logits"],
-                      opset_version=13, dynamic_axes=None)
+    model = model.cpu().eval()
+
+    # torch 2.6+ routes torch.onnx.export through the dynamo exporter by
+    # default and the legacy path rejects some argument combinations, so try
+    # the variants in order and report every failure rather than swallowing it.
+    attempts = [
+        dict(opset_version=17, dynamo=False),
+        dict(opset_version=17),
+        dict(opset_version=13, dynamo=False),
+    ]
+    errors = []
+    for kw in attempts:
+        try:
+            torch.onnx.export(model, dummy, path, input_names=["input"],
+                              output_names=["logits"], **kw)
+            break
+        except Exception as exc:                      # noqa: BLE001
+            errors.append(f"{kw}: {type(exc).__name__}: {exc}")
+    else:
+        raise RuntimeError("all ONNX export attempts failed:\n  "
+                           + "\n  ".join(errors))
     sess = ort.InferenceSession(path, providers=["CPUExecutionProvider"])
     x = dummy.numpy()
     for _ in range(10):
@@ -395,7 +420,12 @@ def stage_quantize(args):
                     "lat_ms_p25": q1, "lat_ms_p75": q3,
                     "device": "cpu", "runs": 100})
             except Exception as exc:                        # noqa: BLE001
+                import traceback
                 print(f"  ! ONNX/latency failed for {base_name}: {exc}")
+                traceback.print_exc()
+                append_result("latency_failures.csv", {
+                    "arch": arch, "seed": seed, "base": base_name,
+                    "error": str(exc)[:500]})
             base.to(DEVICE)
 
 
@@ -435,7 +465,26 @@ def stage_external(args):
     x = torch.from_numpy(np.stack(imgs).astype(np.float32) / 255.0).unsqueeze(1)
     x = (x - 0.5) / 0.5
     y = np.array(labels)
-    print(f"external set: {len(y)} images ({y.sum()} TB)")
+
+    # Published class balances: Montgomery 80 normal / 58 TB, Shenzhen
+    # 326 normal / 336 TB. If the parsed counts come out swapped, the _0/_1
+    # convention is being read backwards and every AUC below 0.5 is explained.
+    expected = {"montgomery": (80, 58), "shenzhen": (326, 336)}
+    print(f"external set: {len(y)} images ({int(y.sum())} TB)")
+    for name, (exp_neg, exp_pos) in expected.items():
+        mask = np.array([c == name for c in cohort])
+        if not mask.any():
+            continue
+        pos = int(y[mask].sum())
+        neg = int(mask.sum() - pos)
+        flag = "OK" if (neg, pos) == (exp_neg, exp_pos) else \
+            ("LABELS LOOK INVERTED" if (neg, pos) == (exp_pos, exp_neg)
+             else "UNEXPECTED")
+        print(f"  {name}: {neg} normal / {pos} TB "
+              f"(expected {exp_neg}/{exp_pos}) -> {flag}")
+        append_result("external_labels.csv", {
+            "cohort": name, "parsed_normal": neg, "parsed_tb": pos,
+            "expected_normal": exp_neg, "expected_tb": exp_pos, "verdict": flag})
 
     from common import compute_metrics
     for arch in args.arch:
@@ -461,6 +510,83 @@ def stage_external(args):
                 append_result("external.csv", {
                     "arch": arch, "seed": seed, "checkpoint": name,
                     "cohort": subset, "n": int(mask.sum()), **m})
+
+
+# -- Stage: cohort overlap ----------------------------------------------------
+
+def _dhash(img, size=8):
+    """64-bit difference hash; stable under rescaling and mild intensity shifts."""
+    import cv2
+    small = cv2.resize(img, (size + 1, size), interpolation=cv2.INTER_AREA)
+    bits = small[:, 1:] > small[:, :-1]
+    h = 0
+    for b in bits.flatten():
+        h = (h << 1) | int(b)
+    return h
+
+
+def stage_overlap(args):
+    """
+    Are the Montgomery/Shenzhen images already inside the training cohort?
+
+    The Rahman database aggregates several sources and the NLM sets are among
+    them. If those images sit in the training split then the external stage is
+    not external, and its numbers are optimistic rather than held out.
+    """
+    import glob
+
+    import cv2
+    if not args.external_path:
+        print("--external-path not given; skipping")
+        return
+
+    members = []
+    for sp in ("train", "val", "test"):
+        df = pd.read_csv(SPLITS[sp], header=None, names=["f", "y"])
+        members += [(os.path.basename(f), sp) for f in df["f"]]
+
+    arr = np.load(os.path.join(common.CACHE_DIR, "faithful.npy"), mmap_mode="r")
+    index = pd.read_csv(os.path.join(common.CACHE_DIR, "faithful_index.csv"))
+    row_of = dict(zip(index["filename"], index["row"]))
+
+    cohort = {}
+    for name, sp in members:
+        if name in row_of:
+            cohort.setdefault(_dhash(np.array(arr[row_of[name]])),
+                              []).append((name, sp))
+
+    ext = [p for p in glob.glob(os.path.join(args.external_path, "**", "*.png"),
+                                recursive=True)
+           if os.path.basename(p)[:-4].endswith(("_0", "_1"))
+           and "mask" not in p.lower()]
+
+    from build_cache import process_faithful
+    hits = 0
+    for p in ext:
+        try:
+            img = process_faithful(p)
+        except Exception:                                # noqa: BLE001
+            img = cv2.resize(cv2.imread(p, cv2.IMREAD_GRAYSCALE), (224, 224))
+        h = _dhash(img)
+        matches = cohort.get(h, [])
+        if not matches:                       # near-duplicates, not just exact
+            for hh, v in cohort.items():
+                if bin(hh ^ h).count("1") <= 5:
+                    matches = v
+                    break
+        if matches:
+            hits += 1
+            append_result("overlap.csv", {
+                "external": os.path.basename(p),
+                "cohort": "montgomery" if "MCUCXR" in p else "shenzhen",
+                "matched_training_file": matches[0][0],
+                "matched_split": matches[0][1]})
+    print(f"overlap: {hits}/{len(ext)} external images match a training-cohort "
+          f"image (dHash Hamming <= 5)")
+    if hits == 0:
+        append_result("overlap.csv", {"external": "(none)", "cohort": "-",
+                                      "matched_training_file": "-",
+                                      "matched_split": "-"})
 
 
 # -- Stage: phone-capture robustness ------------------------------------------
@@ -556,7 +682,8 @@ def stage_summary(args):
     return out
 
 
-STAGES = {"baseline": stage_baseline, "prune": stage_prune, "distill": stage_distill,
+STAGES = {"baseline": stage_baseline, "prune": stage_prune,
+          "overlap": stage_overlap, "distill": stage_distill,
           "quantize": stage_quantize, "external": stage_external,
           "phone": stage_phone, "summary": stage_summary}
 
