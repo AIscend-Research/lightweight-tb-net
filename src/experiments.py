@@ -453,11 +453,16 @@ def stage_external(args):
         print(f"no MC/SZ-style images under {args.external_path}; skipping")
         return
 
-    from build_cache import process_faithful
+    # Match the pipeline the models were trained under. With labels ruled out
+    # as the cause of the sub-chance AUC, preprocessing is the open suspect,
+    # so this has to be selectable rather than hardcoded.
+    from build_cache import PROCESSORS
+    process = PROCESSORS[args.caches[0]]
+    print(f"external preprocessing: {args.caches[0]}")
     imgs, labels, cohort = [], [], []
     for p in paths:
         try:
-            imgs.append(process_faithful(p))
+            imgs.append(process(p))
         except Exception:                                    # noqa: BLE001
             imgs.append(cv2.resize(cv2.imread(p, cv2.IMREAD_GRAYSCALE), (224, 224)))
         labels.append(int(os.path.basename(p)[:-4][-1]))
@@ -509,7 +514,8 @@ def stage_external(args):
                 m = compute_metrics(y[mask], probs[mask])
                 append_result("external.csv", {
                     "arch": arch, "seed": seed, "checkpoint": name,
-                    "cohort": subset, "n": int(mask.sum()), **m})
+                    "preproc": args.caches[0], "cohort": subset,
+                    "n": int(mask.sum()), **m})
 
 
 # -- Stage: cohort overlap ----------------------------------------------------
@@ -562,31 +568,46 @@ def stage_overlap(args):
 
     from build_cache import process_faithful
     hits = 0
+    distances = []
     for p in ext:
         try:
             img = process_faithful(p)
         except Exception:                                # noqa: BLE001
             img = cv2.resize(cv2.imread(p, cv2.IMREAD_GRAYSCALE), (224, 224))
         h = _dhash(img)
-        matches = cohort.get(h, [])
-        if not matches:                       # near-duplicates, not just exact
-            for hh, v in cohort.items():
-                if bin(hh ^ h).count("1") <= 5:
-                    matches = v
+        # Nearest neighbour, not first-hit: a chest radiograph downsampled to
+        # 9x8 shares gross thoracic structure with every other chest
+        # radiograph, so a loose radius matches almost anything. Record the
+        # actual distance and let the threshold be justified from it.
+        best_d, matches = 64, []
+        for hh, v in cohort.items():
+            d = bin(hh ^ h).count("1")
+            if d < best_d:
+                best_d, matches = d, v
+                if d == 0:
                     break
-        if matches:
+        distances.append(best_d)
+        if best_d <= args.hash_radius:
             hits += 1
             append_result("overlap.csv", {
                 "external": os.path.basename(p),
                 "cohort": "montgomery" if "MCUCXR" in p else "shenzhen",
                 "matched_training_file": matches[0][0],
-                "matched_split": matches[0][1]})
-    print(f"overlap: {hits}/{len(ext)} external images match a training-cohort "
-          f"image (dHash Hamming <= 5)")
+                "matched_split": matches[0][1],
+                "hamming": best_d})
+    print(f"overlap: {hits}/{len(ext)} external images within Hamming "
+          f"{args.hash_radius} of a training image")
+    hist = {d: distances.count(d) for d in sorted(set(distances))}
+    print("nearest-neighbour distance histogram:", hist)
+    print("  If the counts rise smoothly from small distances with no gap, the")
+    print("  hash is measuring anatomy rather than identity and no threshold")
+    print("  on it is trustworthy.")
+    for d, n in hist.items():
+        append_result("overlap_distances.csv", {"hamming": d, "count": n})
     if hits == 0:
         append_result("overlap.csv", {"external": "(none)", "cohort": "-",
                                       "matched_training_file": "-",
-                                      "matched_split": "-"})
+                                      "matched_split": "-", "hamming": -1})
 
 
 # -- Stage: phone-capture robustness ------------------------------------------
@@ -644,6 +665,125 @@ def stage_phone(args):
                         "training": "phone_augmented", "condition": cond, **m})
 
 
+# -- Stage: probability dumps for existing checkpoints ------------------------
+
+def stage_dumpprobs(args):
+    """
+    Write results/probs/<name>.csv for checkpoints that predate probability
+    dumping. Inference only, no training, so it costs seconds per model and
+    unlocks the paired significance tests those checkpoints are missing.
+    """
+    if not os.path.isdir(CKPT_DIR):
+        print("no checkpoints/ directory")
+        return
+    cache = args.caches[0]
+    _, _, te = make_loaders(cache, 0)
+    _, _, te3 = make_loaders(cache, 0, three_channel=True)
+
+    for fname in sorted(os.listdir(CKPT_DIR)):
+        if not fname.endswith(".pth"):
+            continue
+        name = fname[:-4]
+        out = os.path.join(common.RESULTS_DIR, "probs", f"{name}.csv")
+        if os.path.exists(out) and not args.force:
+            continue
+        if "fp16" in name or "int8" in name:
+            continue                     # quantized state dicts, handled elsewhere
+        is_student = name.startswith("student")
+        arch = "full" if name.startswith("full") else "compact"
+        model = build_student(pretrained=False) if is_student \
+            else build_model(arch)
+        try:
+            model.load_state_dict(torch.load(os.path.join(CKPT_DIR, fname),
+                                             map_location="cpu"))
+        except Exception as exc:                          # noqa: BLE001
+            print(f"  ! {name}: {type(exc).__name__}: {exc}")
+            continue
+        model.to(DEVICE)
+        dump_probs(model, (te3 if is_student else te).dataset, name)
+        print(f"  dumped {name}")
+
+
+# -- Stage: FLOPs -------------------------------------------------------------
+
+def stage_flops(args):
+    """
+    Dense and effective multiply-accumulate counts.
+
+    Dense FLOPs are identical across every pruning condition, because a zeroed
+    weight is still multiplied. The number that reflects a real compute saving
+    is the effective count, which charges only for output channels that are
+    not entirely zero. Input-channel propagation is not modelled, so the
+    effective figure is conservative: the true saving is at least this large.
+    """
+    shapes = {}
+
+    def hook(mod, inp, out):
+        shapes[mod] = (tuple(inp[0].shape), tuple(out.shape))
+
+    def macs(model, count_dead=True):
+        handles = [m.register_forward_hook(hook)
+                   for m in model.modules()
+                   if isinstance(m, (nn.Conv2d, nn.Linear))]
+        model.eval()
+        with torch.no_grad():
+            model(torch.randn(1, 1, 224, 224).to(next(model.parameters()).device))
+        for h in handles:
+            h.remove()
+
+        dense = eff = 0
+        for m, (ishape, oshape) in shapes.items():
+            w = m.weight.detach()
+            if isinstance(m, nn.Conv2d):
+                per_out = (w.shape[1] * w.shape[2] * w.shape[3])
+                spatial = oshape[2] * oshape[3]
+                dense += per_out * w.shape[0] * spatial
+                live = int((w.flatten(1).abs().sum(1) != 0).sum()) if count_dead \
+                    else w.shape[0]
+                eff += per_out * live * spatial
+            else:
+                dense += w.shape[0] * w.shape[1]
+                live = int((w.abs().sum(1) != 0).sum()) if count_dead else w.shape[0]
+                eff += live * w.shape[1]
+        shapes.clear()
+        return dense, eff
+
+    for arch in args.arch:
+        model = build_model(arch).to(DEVICE)
+        dense, _ = macs(model, count_dead=False)
+        append_result("flops.csv", {
+            "arch": arch, "checkpoint": "(untrained dense)",
+            "params": count_params(model),
+            "macs_dense_M": round(dense / 1e6, 2),
+            "macs_effective_M": round(dense / 1e6, 2),
+            "saving_pct": 0.0})
+        print(f"  {arch}: {dense / 1e6:.1f}M MACs dense, "
+              f"{count_params(model) / 1e6:.2f}M params")
+
+    if not os.path.isdir(CKPT_DIR):
+        return
+    for fname in sorted(os.listdir(CKPT_DIR)):
+        if not fname.endswith(".pth") or "fp16" in fname or "int8" in fname \
+                or fname.startswith("student"):
+            continue
+        name = fname[:-4]
+        arch = "full" if name.startswith("full") else "compact"
+        model = build_model(arch)
+        try:
+            model.load_state_dict(torch.load(os.path.join(CKPT_DIR, fname),
+                                             map_location="cpu"))
+        except Exception:                                  # noqa: BLE001
+            continue
+        model.to(DEVICE)
+        dense, eff = macs(model)
+        append_result("flops.csv", {
+            "arch": arch, "checkpoint": name,
+            "params": count_params(model),
+            "macs_dense_M": round(dense / 1e6, 2),
+            "macs_effective_M": round(eff / 1e6, 2),
+            "saving_pct": round(100.0 * (1 - eff / max(dense, 1)), 2)})
+
+
 # -- Summary ------------------------------------------------------------------
 
 def stage_summary(args):
@@ -683,6 +823,7 @@ def stage_summary(args):
 
 
 STAGES = {"baseline": stage_baseline, "prune": stage_prune,
+          "dumpprobs": stage_dumpprobs, "flops": stage_flops,
           "overlap": stage_overlap, "distill": stage_distill,
           "quantize": stage_quantize, "external": stage_external,
           "phone": stage_phone, "summary": stage_summary}
@@ -712,6 +853,9 @@ def main():
     ap.add_argument("--pretrained-student", type=int, default=1)
     ap.add_argument("--phone-finetune", action="store_true")
     ap.add_argument("--external-path", default="")
+    ap.add_argument("--hash-radius", type=int, default=0,
+                    help="overlap: max dHash Hamming distance "
+                         "counted as a duplicate (0 = exact)")
     ap.add_argument("--force", action="store_true")
     args = ap.parse_args()
     args.weighted = [bool(w) for w in args.weighted]
