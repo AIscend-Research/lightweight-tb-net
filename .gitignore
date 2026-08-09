@@ -135,3 +135,11 @@ dmypy.json
 data/ 
 models/_tmp*.pth 
 roadmap.txt
+
+# Generated at run time by reproduce.ipynb / src/experiments.py
+cache/
+results/
+checkpoints/
+data_splits/
+deploy_repro/
+artifacts/

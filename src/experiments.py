@@ -1,7 +1,6 @@
 """
 Every experiment in the reproducibility study, as resumable stages.
 
-  python src/experiments.py --stage audit
   python src/experiments.py --stage baseline --arch compact full --seeds 0 1 2 3 4
   python src/experiments.py --stage prune    --seeds 0 1 2 3 4
   python src/experiments.py --stage distill  --seeds 0 1 2 3 4
@@ -40,7 +39,7 @@ CKPT_DIR = os.path.join(REPO, "checkpoints")
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-# ── Data ─────────────────────────────────────────────────────────────────────
+# -- Data ---------------------------------------------------------------------
 
 def make_loaders(cache, seed, batch_size=32, three_channel=False,
                  augment_train=False, train_perturb=None, dual_train=False):
@@ -66,7 +65,7 @@ def class_weight_tensor():
     return torch.tensor(w, dtype=torch.float32, device=DEVICE)
 
 
-# ── Generic training loop ────────────────────────────────────────────────────
+# -- Generic training loop ----------------------------------------------------
 
 def fit(model, train_loader, val_loader, epochs, lr=1e-4, weights=None,
         teacher=None, temperature=4.0, alpha=0.7, cosine=False, tag=""):
@@ -139,7 +138,7 @@ def dump_probs(model, dataset, tag, device=DEVICE):
     """
     Persist per-sample TB probabilities.
 
-    With these on disk, ROC curves, operating-point selection (paper §5.8),
+    With these on disk, ROC curves, operating-point selection (paper section 5.8),
     paired bootstrap comparisons between models and DeLong tests are all
     plain post-processing - no retraining and no re-inference needed.
     """
@@ -158,47 +157,7 @@ def dump_probs(model, dataset, tag, device=DEVICE):
     return path
 
 
-# ── Stage: audit existing checkpoints ────────────────────────────────────────
-
-def stage_audit(args):
-    """
-    Re-evaluate the checkpoints already committed in models/ to settle which
-    of the two conflicting result tables (paper section 4 vs
-    extensions/results_clean.csv) reflects reality.
-    """
-    legacy = os.path.join(REPO, "models")
-    if not os.path.isdir(legacy):
-        print("no models/ directory; skipping audit")
-        return
-    for cache in args.caches:
-        _, _, test = make_loaders(cache, seed=0)
-        _, _, test3 = make_loaders(cache, seed=0, three_channel=True)
-        for fname in sorted(os.listdir(legacy)):
-            if not fname.endswith(".pth"):
-                continue
-            path = os.path.join(legacy, fname)
-            is_student = "student" in fname or "mobilenet" in fname
-            model = build_student(pretrained=False) if is_student \
-                else build_model("compact")
-            try:
-                sd = torch.load(path, map_location="cpu")
-                model.load_state_dict(sd)
-            except Exception as exc:                       # noqa: BLE001
-                print(f"  ! {fname}: cannot load ({type(exc).__name__}: {exc})")
-                append_result("audit.csv", {"checkpoint": fname, "cache": cache,
-                                            "error": str(exc)[:200]})
-                continue
-            model.to(DEVICE)
-            if "fp16" in fname and DEVICE.type == "cuda":
-                model.half()
-            m = evaluate(model, test3 if is_student else test, DEVICE)
-            append_result("audit.csv", {"checkpoint": fname, "cache": cache,
-                                        "size_mb": size_mb(path),
-                                        "params": count_params(model), **m})
-            print(f"  {fname} [{cache}] acc {m['acc']:.2f} sens {m['sens']:.2f}")
-
-
-# ── Stage: baselines ─────────────────────────────────────────────────────────
+# -- Stage: baselines ---------------------------------------------------------
 
 def stage_baseline(args):
     for arch in args.arch:
@@ -235,7 +194,7 @@ def load_baseline(arch, cache, seed, weighted=False):
     return model.to(DEVICE), name
 
 
-# ── Stage: pruning ───────────────────────────────────────────────────────────
+# -- Stage: pruning -----------------------------------------------------------
 
 def prunable(model):
     return [(m, "weight") for m in model.modules()
@@ -340,7 +299,7 @@ def stage_prune(args):
                 "size_mb": size_mb(path), **m})
 
 
-# ── Stage: distillation (with a from-scratch control) ────────────────────────
+# -- Stage: distillation (with a from-scratch control) ------------------------
 
 def stage_distill(args):
     cache = args.caches[0]
@@ -369,7 +328,7 @@ def stage_distill(args):
             print(f"  -> student/{mode}/s{seed}: acc {m['acc']:.2f} sens {m['sens']:.2f}")
 
 
-# ── Stage: quantization, combined compression, ONNX latency ──────────────────
+# -- Stage: quantization, combined compression, ONNX latency ------------------
 
 def onnx_latency(model, path, n=100, three_channel=False):
     import onnxruntime as ort
@@ -440,7 +399,7 @@ def stage_quantize(args):
             base.to(DEVICE)
 
 
-# ── Stage: external validation on Montgomery + Shenzhen ──────────────────────
+# -- Stage: external validation on Montgomery + Shenzhen ----------------------
 
 def stage_external(args):
     """
@@ -504,7 +463,7 @@ def stage_external(args):
                     "cohort": subset, "n": int(mask.sum()), **m})
 
 
-# ── Stage: phone-capture robustness ──────────────────────────────────────────
+# -- Stage: phone-capture robustness ------------------------------------------
 
 PHONE_COMPONENTS = ["brightness", "blur", "moire", "rotation", "glare"]
 
@@ -559,7 +518,7 @@ def stage_phone(args):
                         "training": "phone_augmented", "condition": cond, **m})
 
 
-# ── Summary ──────────────────────────────────────────────────────────────────
+# -- Summary ------------------------------------------------------------------
 
 def stage_summary(args):
     """Aggregate every stage CSV into mean +/- std across seeds."""
@@ -597,8 +556,7 @@ def stage_summary(args):
     return out
 
 
-STAGES = {"audit": stage_audit, "baseline": stage_baseline,
-          "prune": stage_prune, "distill": stage_distill,
+STAGES = {"baseline": stage_baseline, "prune": stage_prune, "distill": stage_distill,
           "quantize": stage_quantize, "external": stage_external,
           "phone": stage_phone, "summary": stage_summary}
 

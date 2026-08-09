@@ -22,7 +22,7 @@ RESULTS_DIR = os.path.join(REPO_ROOT, "results")
 CACHE_DIR = os.path.join(REPO_ROOT, "cache")
 
 
-# ── Determinism ──────────────────────────────────────────────────────────────
+# -- Determinism --------------------------------------------------------------
 
 def set_seed(seed):
     """Seed every RNG we touch and put cuDNN in deterministic mode."""
@@ -48,7 +48,7 @@ def loader_generator(seed):
     return g
 
 
-# ── Cached dataset ───────────────────────────────────────────────────────────
+# -- Cached dataset -----------------------------------------------------------
 
 class CachedTBDataset(Dataset):
     """
@@ -120,7 +120,7 @@ class CachedTBDataset(Dataset):
         return (x3 if self.three_channel else x1), self.labels[idx]
 
 
-# ── Phone-capture perturbation ───────────────────────────────────────────────
+# -- Phone-capture perturbation -----------------------------------------------
 
 def phone_perturb(img, rng, components=("brightness", "blur", "moire",
                                          "rotation", "glare")):
@@ -165,7 +165,7 @@ def phone_perturb(img, rng, components=("brightness", "blur", "moire",
     return np.clip(out, 0, 255).astype(np.uint8)
 
 
-# ── Metrics ──────────────────────────────────────────────────────────────────
+# -- Metrics ------------------------------------------------------------------
 
 def _rates(y_true, y_pred):
     y_true, y_pred = np.asarray(y_true), np.asarray(y_pred)
@@ -234,7 +234,7 @@ def evaluate(model, loader, device, threshold=0.5, n_boot=1000):
     return compute_metrics(labels, probs, threshold=threshold, n_boot=n_boot)
 
 
-# ── Bookkeeping ──────────────────────────────────────────────────────────────
+# -- Bookkeeping --------------------------------------------------------------
 
 def count_params(model):
     return sum(p.numel() for p in model.parameters())

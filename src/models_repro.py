@@ -1,8 +1,8 @@
 """
 Model registry for the reproducibility study.
 
-  compact — the original 0.27M-parameter re-implementation (src/model.py).
-  full    — a capacity-matched reconstruction sized to the ~4.24M parameters
+  compact  - the original 0.27M-parameter re-implementation (src/model.py).
+  full     - a capacity-matched reconstruction sized to the ~4.24M parameters
             reported by Wong et al. (2022).
 
 IMPORTANT, and this belongs in the paper: 'full' is NOT a faithful port. The

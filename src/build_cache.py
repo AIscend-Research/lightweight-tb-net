@@ -5,10 +5,10 @@ from RAM instead of re-decoding PNGs every epoch.
 Two cache variants are built so the preprocessing pipeline itself can be
 ablated:
 
-  faithful — the paper's pipeline: B-channel split, padding-aware auto-crop,
+  faithful  - the paper's pipeline: B-channel split, padding-aware auto-crop,
              resize, the DSI's (11,11,168,202) crop, resize, corner masking.
              This mirrors src/preprocessing.py + src/_tf1_reference/dsi.py.
-  simple   — what src/train.py currently does: grayscale convert + resize.
+  simple    - what src/train.py currently does: grayscale convert + resize.
 
 Usage:
   python src/build_cache.py --data-path data/ --variant faithful
