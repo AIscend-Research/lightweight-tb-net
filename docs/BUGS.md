@@ -252,9 +252,15 @@ opset versions and the dynamo exporter was built on top of a message nobody
 had read. Broad exception handlers that print only `str(exc)` cost more than
 they save.
 
-Fix: install `onnxruntime` in `finish_run.ipynb` and rerun the quantize stage.
-The multi-configuration export path added earlier is harmless but was aimed at
-the wrong problem.
+There is a second missing package behind the first. A later run that did have
+`onnxruntime` failed with `No module named 'onnxscript'`: torch 2.6 and later
+route `torch.onnx.export` through the dynamo exporter by default, and that
+path needs `onnxscript`. So the dependency list is `onnx`, `onnxruntime` and
+`onnxscript`, and the multi-configuration export path added earlier does earn
+its keep after all, because it tries `dynamo=False` first and sidesteps the
+dynamo requirement entirely.
+
+Fix: install all three in `finish_results.ipynb` and rerun the quantize stage.
 
 ---
 
