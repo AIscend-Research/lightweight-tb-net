@@ -383,8 +383,12 @@ def onnx_latency(model, path, n=100, three_channel=False):
 
 def stage_quantize(args):
     cache = args.caches[0]
-    arch = args.arch[0]
     os.makedirs(os.path.join(REPO, "deploy_repro"), exist_ok=True)
+    for arch in args.arch:
+        _stage_quantize_arch(args, arch, cache)
+
+
+def _stage_quantize_arch(args, arch, cache):
     for seed in args.seeds:
         _, _, te = make_loaders(cache, seed)
 

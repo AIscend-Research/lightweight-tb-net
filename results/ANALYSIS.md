@@ -7,7 +7,7 @@ in `figures/` is derived from the same files.
 
 | field | value |
 |---|---|
-| commit | 6e2e4df63701 |
+| commit | 5b1a0c6614f9 |
 | seeds | [0, 1, 2, 3, 4] |
 | architectures | ['compact', 'full'] |
 | preprocessing | ['faithful', 'simple'] |
@@ -19,7 +19,7 @@ in `figures/` is derived from the same files.
 
 | arch | preprocessing | weighted | accuracy | sensitivity | specificity | AUC |
 |---|---|---|---|---|---|---|
-| compact | faithful | False | 98.81 +/- 0.81 | 95.71 +/- 1.43 | 99.43 +/- 0.81 | 0.9958 +/- 0.0030 |
+| compact | faithful | False | 98.48 +/- 1.83 | 96.57 +/- 1.81 | 98.86 +/- 2.28 | 0.9966 +/- 0.0025 |
 | compact | faithful | True | 94.67 +/- 5.16 | 94.86 +/- 2.60 | 94.63 +/- 5.88 | 0.9859 +/- 0.0122 |
 | compact | simple | False | 98.76 +/- 0.54 | 96.29 +/- 3.29 | 99.26 +/- 0.56 | 0.9991 +/- 0.0006 |
 | full | faithful | False | 89.60 +/- 7.55 | 91.00 +/- 4.15 | 89.31 +/- 9.52 | 0.9741 +/- 0.0129 |
@@ -33,7 +33,7 @@ accuracy.
 
 | comparison | d AUC | d sensitivity | 95% CI on d AUC | seeds favouring A | CI excludes 0 |
 |---|---|---|---|---|---|
-| faithful - simple | -0.327 +/- 0.293 pp | -0.57 +/- 3.29 pp | [-0.66, 0.05] | 1/5 | no |
+| faithful - simple | 7.760 +/- 4.346 pp | 19.43 +/- 13.12 pp | [2.89, 8.50] | 5/5 | yes |
 | class-weighted - plain CE | -0.992 +/- 1.192 pp | -0.86 +/- 2.39 pp | [-1.98, -0.03] | 0/5 | yes |
 
 ## 2. Pruning
@@ -80,10 +80,6 @@ The control is what licenses any claim about distillation. Without it, a student
 | compact | pruned25 | fp16 | 99.19 +/- 0.27 | 96.00 +/- 0.64 | 0.9979 +/- 0.0013 | 0.548 +/- 0.000 |
 | compact | pruned25 | int8_dynamic | 99.19 +/- 0.27 | 96.00 +/- 0.64 | 0.9979 +/- 0.0013 | 0.823 +/- 0.000 |
 
-`latency.csv` is absent: the ONNX export raised and the stage caught
-it, so no latency was recorded. Any deployment-latency claim is
-currently unsupported by measurement.
-
 ## 5. Phone-capture robustness
 
 | arch | training | condition | accuracy | sensitivity | specificity |
@@ -116,14 +112,14 @@ currently unsupported by measurement.
 
 | arch | cohort | n | accuracy | sensitivity | specificity | AUC | AUC if inverted |
 |---|---|---|---|---|---|---|---|
-| compact | all | 800 | 50.12 +/- 1.27 | 2.18 +/- 4.47 | 96.65 +/- 6.80 | 0.3226 +/- 0.0172 | 0.6774 +/- 0.0172 |
-| compact | montgomery | 138 | 57.68 +/- 0.65 | 0.00 +/- 0.00 | 99.50 +/- 1.12 | 0.4658 +/- 0.0306 | 0.5342 +/- 0.0306 |
-| compact | shenzhen | 662 | 48.55 +/- 1.56 | 2.56 +/- 5.24 | 95.95 +/- 8.54 | 0.2942 +/- 0.0276 | 0.7058 +/- 0.0276 |
-| full | all | 800 | 54.50 +/- 5.60 | 52.54 +/- 26.71 | 56.40 +/- 17.85 | 0.5942 +/- 0.0760 | 0.4058 +/- 0.0760 |
-| full | montgomery | 138 | 57.97 +/- 4.50 | 31.72 +/- 14.76 | 77.00 +/- 4.20 | 0.5908 +/- 0.0251 | 0.4092 +/- 0.0251 |
-| full | shenzhen | 662 | 53.78 +/- 5.95 | 56.13 +/- 28.99 | 51.35 +/- 21.65 | 0.5915 +/- 0.0890 | 0.4085 +/- 0.0890 |
+| compact | all | 800 | 50.45 +/- 0.91 | 1.12 +/- 3.18 | 98.33 +/- 4.87 | 0.2932 +/- 0.0363 | 0.7068 +/- 0.0363 |
+| compact | montgomery | 138 | 57.90 +/- 0.53 | 0.17 +/- 0.55 | 99.75 +/- 0.79 | 0.4942 +/- 0.0525 | 0.5058 +/- 0.0525 |
+| compact | shenzhen | 662 | 48.90 +/- 1.10 | 1.28 +/- 3.74 | 97.98 +/- 6.08 | 0.2526 +/- 0.0499 | 0.7474 +/- 0.0499 |
+| full | all | 800 | 51.77 +/- 2.70 | 34.54 +/- 36.97 | 68.50 +/- 32.32 | 0.5333 +/- 0.0546 | 0.4667 +/- 0.0546 |
+| full | montgomery | 138 | 59.06 +/- 1.61 | 23.79 +/- 29.20 | 84.62 +/- 22.31 | 0.6018 +/- 0.0227 | 0.3982 +/- 0.0227 |
+| full | shenzhen | 662 | 50.26 +/- 3.24 | 36.40 +/- 38.75 | 64.54 +/- 35.34 | 0.5025 +/- 0.0722 | 0.4975 +/- 0.0722 |
 
-**Treat this stage as unresolved.** The lowest AUC is 0.294 for compact/shenzhen, which is below
+**Treat this stage as unresolved.** The lowest AUC is 0.253 for compact/shenzhen, which is below
 chance. A systematically inverted ranking is more often a label
 or preprocessing defect than a domain-shift result, and the
 'AUC if inverted' column shows what the numbers would be under
@@ -153,6 +149,7 @@ TB triage tools is 90% sensitivity at 70% specificity.
 | comparison | d AUC | d sensitivity | 95% CI on d AUC | seeds favouring A | CI excludes 0 |
 |---|---|---|---|---|---|
 | 25% pruned - unpruned baseline | 0.212 +/- 0.272 pp | 0.29 +/- 1.56 pp | [0.00, 0.28] | 4/5 | no |
+| iterative 75% - one-shot 75% | 0.841 +/- 0.744 pp | 87.71 +/- 16.31 pp | [0.00, 1.01] | 4/5 | no |
 | structured 25% - unstructured 25% | -0.336 +/- 0.391 pp | -0.86 +/- 2.96 pp | [-1.82, 0.02] | 2/5 | no |
 
 ## 9. Calibration

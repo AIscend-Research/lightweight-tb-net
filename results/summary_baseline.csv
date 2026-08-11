@@ -1,0 +1,8 @@
+,,,acc,acc,acc,sens,sens,sens,spec,spec,spec,auc,auc,auc,size_mb,size_mb,size_mb
+,,,mean,std,count,mean,std,count,mean,std,count,mean,std,count,mean,std,count
+arch,cache,weighted,,,,,,,,,,,,,,,
+compact,faithful,False,98.4762,1.8313,10,96.5714,1.807,10,98.8571,2.2778,10,0.9966,0.0025,10,1.0694,0.0002,10
+compact,faithful,True,94.6667,5.1579,5,94.8571,2.5951,5,94.6286,5.8846,5,0.9859,0.0122,5,1.0694,0.0,5
+compact,simple,False,98.7619,0.5429,5,96.2857,3.2888,5,99.2571,0.557,5,0.9991,0.0006,5,1.0691,0.0,5
+full,faithful,False,89.5952,7.5527,10,91.0,4.1541,10,89.3143,9.524,10,0.9741,0.0129,10,16.5881,0.0,10
+full,simple,False,96.3333,3.3274,5,98.2857,1.1952,5,95.9429,4.0928,5,0.9976,0.0022,5,16.5879,0.0,5

@@ -1,5 +1,5 @@
 {
-  "commit": "6e2e4df63701453424056fde4f5c8feb4289c6cc",
+  "commit": "5b1a0c6614f92a9a79cfb329946a780a282c5fc4",
   "repo": "https://github.com/AIscend-Research/lightweight-tb-net",
   "seeds": [
     0,
@@ -19,10 +19,11 @@
   "data_path": "/kaggle/input/datasets/tawsifurrahman/tuberculosis-tb-chest-xray-dataset/TB_Chest_Radiography_Database",
   "external_path": "/kaggle/input/datasets/kmader/pulmonary-chest-xray-abnormalities",
   "tasks": {
-    "external": true,
+    "latency": true,
     "overlap": true,
-    "onnx": true,
-    "curves": true
-  },
-  "long_epochs": 30
+    "external_simple": true,
+    "dumpprobs": true,
+    "flops": true,
+    "compact30": true
+  }
 }

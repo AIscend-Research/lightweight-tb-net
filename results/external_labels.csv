@@ -1,3 +1,5 @@
 cohort,parsed_normal,parsed_tb,expected_normal,expected_tb,verdict
 montgomery,80,58,80,58,OK
 shenzhen,326,336,326,336,OK
+montgomery,80,58,80,58,OK
+shenzhen,326,336,326,336,OK

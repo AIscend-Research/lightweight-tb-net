@@ -1,0 +1,5 @@
+,,lat_ms_median,lat_ms_median,lat_ms_median
+,,mean,std,count
+arch,base,,,
+compact,fp32,2.6175,0.9136,5
+compact,pruned25,2.6478,0.8646,5

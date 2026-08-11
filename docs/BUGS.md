@@ -34,10 +34,28 @@ removed, but it was not what produced the high scores. The corrected cohort is
 4,200 distinct images at a 5:1 normal-to-TB ratio, not the 2.5:1 previously
 assumed.
 
-**Open question:** whether the duplicate filenames were inherited from the
-original TB-Net split files or introduced locally by unpacking two copies of
-the dataset. This determines whether the finding concerns other users of those
-splits or only this pipeline, and it should be settled before publication.
+**Provenance: settled, and the answer narrows the finding.** The duplicates
+were introduced locally. They were not inherited from the original TB-Net
+splits.
+
+This repository's git history contains the original DarwinAI repository, whose
+`train_split.csv` was committed on 2021-03-08. Its tuberculosis entries are
+formatted `TB (188).png`, with a space and parentheses, and its indices run to
+roughly 3500 across 6,927 rows in the three splits. The duplicates here are
+formatted `TB-699.png`, hyphenated, and stop at exactly 700, which is the size
+of the current public Kaggle release. They are therefore renamed copies of
+`Tuberculosis-1..700`, most plausibly created to match the original naming
+convention and then left in `data/` beside the originals, where the old
+generator globbed both.
+
+So this is a defect in this pipeline, not in the published TB-Net splits, and
+the write-up should say so plainly rather than implying a wider problem.
+
+**A separate finding does survive, and it is evidence rather than inference.**
+The original splits reference 6,927 images with TB indices to about 3500,
+while the current Kaggle release contains 700 TB images. The cohort the
+original work used is not the cohort available today, and the original repo's
+own files demonstrate it.
 
 ---
 
@@ -199,7 +217,7 @@ a port, and no claim of architectural fidelity should be made for it.
 
 ## 13. External validation scores below chance
 
-**Status: open, one cause eliminated**
+**Status: open, two causes eliminated**
 
 On Montgomery and Shenzhen the compact model reaches AUC 0.32 +/- 0.02 overall
 and 0.29 +/- 0.03 on Shenzhen alone, well below the 0.5 expected from random
@@ -219,6 +237,14 @@ Three candidates, each now testable:
    image against the cached training cohort and reports matches. This does not
    explain a sub-chance AUC, but it decides whether the stage is external at
    all.
+
+**Verdict on item 2: preprocessing is not the cause either.** Evaluating the
+`simple`-trained models on `simple`-processed external images does not rescue
+the AUC; it lowers it, to 0.264 +/- 0.023 for compact against 0.323 +/- 0.017
+under `faithful`. The failure is also cohort-specific: on Montgomery both
+pipelines sit near chance (0.47 to 0.52) while on Shenzhen the ranking is
+strongly inverted (0.211 to 0.294). Whatever is happening is specific to the
+Shenzhen cohort and survives a complete change of preprocessing.
 
 **Verdict on item 1: labels are correct.** The parsed balance is exactly the
 published one, Montgomery 80 normal / 58 TB and Shenzhen 326 / 336, so the
@@ -280,9 +306,17 @@ chest X-ray shares, so a Hamming radius of 5 matches almost anything. The
 first dictionary hit is also returned arbitrarily among near-matches, so
 `matched_training_file` is not meaningful.
 
-The question the stage was built to answer is still open. A usable version
-needs exact-hash matching, or a stricter radius validated against known
-duplicates, or a proper embedding distance rather than a perceptual hash.
+Rerun with exact matching and a full distance histogram, the answer is that
+the hash cannot settle the question. Nearest-neighbour distances form one
+smooth unimodal distribution peaking at Hamming 3 (33 images at distance 0,
+75 at 1, 130 at 2, 157 at 3, then a steady decline to 4 at distance 13). Real
+duplicates would appear as a spike at or near zero separated by a gap; there
+is no gap. The 33 exact collisions are consistent with the left tail of that
+distribution rather than with genuine repeats.
+
+The honest write-up is that cohort overlap remains untested. Settling it needs
+an embedding distance or pixel-level comparison, not a 64-bit perceptual hash
+of a downsampled radiograph.
 
 
 ## 16. A forced re-run silently dropped an experimental arm
@@ -302,7 +336,21 @@ delete-then-regenerate is only safe when the regenerating command covers every
 condition the file already held.
 
 
-## 17. Stale repository URL
+## 17. The quantization stage silently ignored all but the first architecture
+
+**Status: fixed** | silent | `src/experiments.py`
+
+`stage_quantize` opened with `arch = args.arch[0]`, so `--arch compact full`
+quantized only `compact` and no error was raised. The consequence is that
+`quantize.csv` and `latency.csv` cover the 0.27M model alone; there are no
+FP16, INT8 or latency numbers for the 4.2M reconstruction, and nothing in the
+output said so.
+
+Fix: the stage now loops over every requested architecture. Recovering the
+missing rows needs a rerun of the quantize stage, roughly ten minutes.
+
+
+## 18. Stale repository URL
 
 **Status: fixed**
 

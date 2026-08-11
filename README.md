@@ -14,9 +14,11 @@ A complete five-seed run is in `results/`, analysed in
 including two that changed reported numbers, is logged in
 [docs/BUGS.md](docs/BUGS.md).
 
-**Do not cite any numbers from this repository's git history.** Two stages
-remain unresolved (external validation scores below chance; ONNX export failed
-so there is no latency measurement), and both are flagged in the analysis.
+**Do not cite any numbers from this repository's git history.** One result
+remains unexplained: external validation on Montgomery and Shenzhen scores at
+or below chance under both preprocessing pipelines, with correct labels. It is
+flagged as unresolved in the analysis and should not be published as a
+domain-shift finding until it is understood.
 
 An earlier version of this study trained on contaminated splits. They listed
 1,400 tuberculosis entries drawn from only 700 distinct images, present twice
@@ -29,6 +31,12 @@ images appeared in both the training set and a held-out set, and 115 of the
 write splits where any image crosses a split boundary. The corrected cohort is
 4,200 distinct images (3,500 normal, 700 TB, a 5:1 ratio rather than the 2.5:1
 previously assumed).
+
+The duplicates were introduced locally rather than inherited: this
+repository's history contains the original DarwinAI repo, whose splits format
+tuberculosis cases as `TB (188).png` with indices to about 3500 across 6,927
+rows, while the duplicates here are `TB-699.png` capped at the 700 images in
+the current Kaggle release. See [docs/BUGS.md](docs/BUGS.md) item 1.
 
 The measured effect of removing the leak was small: 98.81 +/- 0.81 accuracy
 and 95.71 +/- 1.43 sensitivity on clean splits, against 98.57 and 95.71 on the
@@ -45,9 +53,11 @@ Two further findings shape what this study can claim:
   possible from published materials. What this repo calls the `full` model is
   a capacity-matched reconstruction (~4.2M parameters, matching the reported
   budget and the described motifs), not a faithful port.
-- **The dataset has changed since publication.** The original split files
-  reference TB cases numbered up to 3460; the current public Kaggle release
-  contains 700.
+- **The dataset has changed since publication.** The original repository's own
+  split files, recoverable from this repository's git history, reference 6,927
+  images with TB indices to about 3500. The current public Kaggle release
+  contains 700 TB images. The cohort used by the original work no longer
+  exists in the form it was used.
 
 ## Layout
 
@@ -140,10 +150,12 @@ Shenzhen sets are among its stated sources. Some of the images used for
 external validation may therefore also sit in the training split, which would
 make that evaluation optimistic rather than genuinely held out.
 
-This repo does not currently detect that overlap. A perceptual-hash
-comparison between the two cohorts would settle it, and the result belongs in
-any write-up regardless of which way it comes out. Until then, treat the
-external numbers as an upper bound.
+`--stage overlap` tests this by perceptual hashing, and the honest answer is
+that the method cannot settle it. Nearest-neighbour dHash distances form one
+smooth distribution peaking at Hamming 3 with no gap, so the hash is measuring
+thoracic anatomy shared by every chest radiograph rather than identity. See
+[docs/BUGS.md](docs/BUGS.md) item 15. Treat the external numbers as an upper
+bound and describe the overlap as untested.
 
 ## Running it
 
