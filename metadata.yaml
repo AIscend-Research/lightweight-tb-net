@@ -13,7 +13,7 @@ title: "[Re] TB-Net: A Tailored, Self-Attention Deep Convolutional Neural Networ
 authors:
   - name: Christopher Huang
     orcid: 0009-0004-3034-9235
-    email: TODO@example.org
+    email:
     affiliations: 1
 
   - name: Wenhao Lu
@@ -23,17 +23,17 @@ authors:
 
   - name: Adithya Balakumar
     orcid: 0009-0002-4035-8704
-    email: TODO@example.org
+    email:
     affiliations: 2
 
   - name: Jonathan Liu
     orcid: 0009-0000-4183-937X
-    email: TODO@example.org
+    email:
     affiliations: 2
 
   - name: Hamzah Rizvi
     orcid: 0009-0004-9864-6607
-    email: TODO@example.org
+    email:
     affiliations: 3
 
 # List of affiliations with code (corresponding to author affiliations), name
@@ -61,7 +61,7 @@ keywords: rescience c, python, pytorch, tuberculosis, chest radiography, medical
 # Software Heritage.
 #   see https://guides.github.com/activities/citable-code/
 code:
-  - url: https://github.com/AIscend-Research/lightweight-tb-net
+  - url: https://github.com/AIscend-Research/tb-repro
   - doi:
   - swh:
 
@@ -73,7 +73,7 @@ data:
 # Information about the original article that has been replicated
 replication:
  - cite: "A. Wong, J. R. H. Lee, H. Rahmat-Khah, A. Sabri, A. Alaref, and H. Liu. TB-Net: A Tailored, Self-Attention Deep Convolutional Neural Network Design for Detection of Tuberculosis Cases From Chest X-Ray Images. Frontiers in Artificial Intelligence 5 (2022)."
- - bib:  wong2022tbnet
+ - bib:  Wong:2022
  - url:  https://www.frontiersin.org/articles/10.3389/frai.2022.827299/full
  - doi:  10.3389/frai.2022.827299
 
@@ -161,5 +161,5 @@ article:
 journal:
   - name:   "ReScience C"
   - issn:   2430-3658
-  - volume: 12
-  - issue:  1
+  - volume: 12   # placeholder, assigned by the editor
+  - issue:  1    # placeholder, assigned by the editor
