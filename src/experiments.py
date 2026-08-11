@@ -179,7 +179,13 @@ def stage_baseline(args):
                     model = fit(model, tr, va, args.epochs, lr=args.lr,
                                 weights=w, cosine=args.cosine,
                                 tag=f"{arch}/{cache}/s{seed}")
-                    name = f"{arch}_{cache}{'_w' if weighted else ''}_s{seed}"
+                    # The epoch count belongs in the name. Without it a
+                    # longer-budget arm overwrites the checkpoint of the
+                    # default one, and every later stage silently loads the
+                    # wrong model while the CSV still distinguishes them.
+                    suffix = "" if args.epochs == 10 else f"_e{args.epochs}"
+                    name = (f"{arch}_{cache}{'_w' if weighted else ''}"
+                            f"{suffix}_s{seed}")
                     path = save_ckpt(model, name)
                     m = evaluate(model, te, DEVICE)
                     dump_probs(model, te.dataset, name)
