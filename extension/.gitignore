@@ -1,0 +1,29 @@
+# data + model artifacts (never commit these)
+data/raw/*
+data/processed/*
+data/real_recapture/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/real_recapture/.gitkeep
+!data/real_recapture/README.md
+!data/real_recapture/manifest_template.csv
+outputs/
+runs/
+*.ckpt
+*.pth
+*.pt
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# secrets
+kaggle.json
+.env

@@ -1,0 +1,8 @@
+# Leave-one-clinic-out with Montgomery held out (a clean two-class holdout).
+data:
+  holdout_clinic: montgomery
+model:
+  arch: baseline
+  backbone: densenet121
+train:
+  epochs: 20

@@ -1,0 +1,14 @@
+# Same LOCO setup as loco_montgomery.yaml, but with the evidential-deep-learning
+# head (models/evidential.py) instead of the baseline's separate MSE-trained
+# uncertainty head. Compare this run's calibration (ECE/MCE) and deferral curve
+# against loco_montgomery.yaml (MC-dropout-able) and an ensemble run to pick the
+# featured uncertainty method for the paper (docs/phase1_framing.md section 2).
+data:
+  holdout_clinic: montgomery
+model:
+  arch: evidential
+  backbone: densenet121
+  dropout: 0.3
+train:
+  epochs: 20
+  evidential_annealing_epochs: 10   # KL penalty ramps in over this many epochs

@@ -1,0 +1,13 @@
+# Montgomery held out, with Deep CORAL feature alignment across the training
+# clinics. Compare against configs/loco_montgomery.yaml: same data, same split,
+# same seed, so the difference in the reported gap is the DG method's doing.
+data:
+  holdout_clinic: montgomery
+model:
+  arch: baseline
+  backbone: densenet121
+dg:
+  method: coral
+  weight: 1.0
+train:
+  epochs: 20

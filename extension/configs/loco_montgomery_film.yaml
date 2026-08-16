@@ -1,0 +1,14 @@
+# Montgomery held out, with clinic-conditional FiLM instead of invariance.
+# The open problem this config exists to study: the held-out clinic has no
+# learned embedding, so every test image falls back to the mean training clinic.
+# See models/clinic_film.py for the alternatives worth trying there.
+data:
+  holdout_clinic: montgomery
+model:
+  arch: baseline
+  backbone: densenet121
+  clinic_film: true
+dg:
+  method: none
+train:
+  epochs: 20
