@@ -1,0 +1,11 @@
+# Same LOCO setup but using the compact attention-condenser TBNet (reproduction
+# path B) instead of the DenseNet baseline -- for the low-compute claim.
+data:
+  holdout_clinic: montgomery
+model:
+  arch: tbnet
+  dropout: 0.3
+  with_uncertainty_head: true
+train:
+  epochs: 40
+  lr: 1.0e-3

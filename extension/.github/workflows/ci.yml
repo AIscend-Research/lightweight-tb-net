@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install (CPU-only torch)
+        run: |
+          python -m pip install --upgrade pip
+          # The CPU wheel index keeps the CI image small and avoids pulling CUDA.
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[dev]"
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Unit tests
+        run: pytest -q
+
+      - name: Smoke test
+        # Runs the whole core (degradation, manifest, splits, calibration,
+        # deferral, a torch forward/backward) on synthetic data, no GPU, no images.
+        run: python scripts/smoke_test.py
+
+      - name: Efficiency benchmark
+        # Needs no data and no GPU; catches architecture regressions such as the
+        # TBNet parameter count drifting away from TB-Net's reported ~4.24M.
+        run: python scripts/benchmark_efficiency.py --models tbnet --repeats 3 --out /tmp/eff.json
+
+  notebooks:
+    # The notebooks are the documented entry point and rotted once because
+    # nothing executed them. This runs all five end to end on a synthetic dataset
+    # with shrunk configs, so an API change that breaks a notebook fails here.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install (CPU-only torch)
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[dev]"
+
+      - name: Execute notebooks
+        run: python scripts/test_notebooks.py

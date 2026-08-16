@@ -1,0 +1,7 @@
+# Leave-one-clinic-out with Shenzhen held out (the other clean two-class holdout).
+data:
+  holdout_clinic: shenzhen
+model:
+  arch: baseline
+train:
+  epochs: 20

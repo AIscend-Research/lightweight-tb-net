@@ -1,0 +1,18 @@
+# In-distribution reference (Phase 3, step 1): the "best case" number the
+# cross-site gap is measured against.
+#
+# split_mode: random ignores the clinic label and splits at random, so the test
+# set comes from the same clinics as training. That is what makes it an
+# in-distribution reference. Do NOT read this run's `best_val_accuracy` as the
+# reference: that is the score the checkpoint was selected on (a maximum over
+# epochs, biased upward) and using it would inflate the generalization gap by
+# exactly that selection bias. Run `tbtrust-eval` on this config and take the
+# test accuracy out of metrics.json instead.
+data:
+  split_mode: random
+  test_frac: 0.15
+model:
+  arch: baseline
+  backbone: densenet121
+train:
+  epochs: 15

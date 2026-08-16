@@ -1,0 +1,14 @@
+# Montgomery held out, with a domain-adversarial clinic classifier (DANN).
+# The adversary is eased in over the run (grl.dann_lambda); if training is
+# unstable, lower dg.weight before touching the learning rate.
+data:
+  holdout_clinic: montgomery
+model:
+  arch: baseline
+  backbone: densenet121
+dg:
+  method: dann
+  weight: 1.0
+  gamma: 10.0
+train:
+  epochs: 20

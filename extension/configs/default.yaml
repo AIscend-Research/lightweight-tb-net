@@ -1,0 +1,63 @@
+# Base config. Experiment files override only what they need.
+seed: 0
+
+data:
+  manifest: data/processed/manifest.csv   # produced by scripts/build_manifest.py
+  # loco   = hold one clinic out entirely (the deployment number)
+  # random = clinic-blind random split (the in-distribution reference number the
+  #          cross-site gap is measured against; see configs/baseline_densenet.yaml)
+  split_mode: loco
+  holdout_clinic: montgomery              # the left-out clinic, when split_mode: loco
+  image_size: 224
+  val_frac: 0.15
+  test_frac: 0.15                         # only used when split_mode: random
+  require_two_class_test: true            # refuse single-class holdouts (niaid/rsna/belarus)
+
+# Smartphone degradation applied on the fly.
+degradation:
+  train_low: 0.0        # randomize severity in [train_low, train_high] during training
+  train_high: 1.0
+  val_fixed: 0.25       # fixed severity for validation
+
+model:
+  arch: baseline        # baseline | tbnet | evidential
+  backbone: densenet121 # used when arch == baseline (CheXNet-style default)
+  pretrained: true
+  dropout: 0.3          # kept active at inference for MC-dropout
+  with_uncertainty_head: true
+  clinic_film: false    # clinic-conditional FiLM modulation (models/clinic_film.py)
+
+# Domain generalization: attack the cross-site gap during training, instead of
+# only absorbing it with deferral at inference. Orthogonal to everything in
+# `eval` -- any method here combines with any uncertainty method. Requires
+# arch: baseline (TBNet/evidential expose no pooled features or domain head).
+dg:
+  method: none          # none | coral | dann | irm
+  weight: 1.0           # strength of the penalty added to the task loss
+  gamma: 10.0           # DANN lambda ramp steepness (grl.dann_lambda)
+
+train:
+  epochs: 20
+  batch_size: 32
+  lr: 3.0e-4
+  weight_decay: 1.0e-4
+  uncertainty_loss_weight: 0.5
+  num_workers: 4
+  device: null          # null -> auto (cuda if available else cpu)
+  output_dir: outputs
+
+eval:
+  severity_sweep: [0.0, 0.25, 0.5, 0.75, 1.0]
+  primary_severity: 0.5   # must appear in severity_sweep; deferral/conformal report here
+  target: accuracy        # what tune_threshold optimises: accuracy | sensitivity | specificity
+  target_accuracy: 0.99
+  min_coverage: 0.5
+  mc_dropout_passes: 20
+  # Uncertainty signals the deferral policy ranks on, compared head to head on
+  # identical (temperature-scaled) probabilities. "confidence" = max(p, 1-p) is
+  # the baseline; "head" is the learned uncertainty head, or evidential vacuity
+  # when arch: evidential. "ensemble" is added automatically when
+  # --ensemble-checkpoints is passed. Methods a checkpoint cannot produce are
+  # reported under uncertainty_methods_unavailable rather than failing the run.
+  uncertainty: [confidence, mc_dropout, head]
+  conformal_alpha: 0.1    # split-conformal target miscoverage (coverage = 1 - alpha)

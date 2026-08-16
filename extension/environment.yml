@@ -1,0 +1,26 @@
+name: tbtrust
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  # Install PyTorch through conda so CUDA is handled for you. If you are on CPU
+  # or a Mac, drop `pytorch-cuda` and follow https://pytorch.org for the right line.
+  - pytorch>=2.1
+  - torchvision>=0.16
+  - pytorch-cuda=12.1
+  - numpy>=1.24
+  - pandas>=2.0
+  - scikit-learn>=1.3
+  - matplotlib>=3.7
+  - pyyaml>=6.0
+  - tqdm>=4.66
+  - pillow>=10.0
+  - pip:
+      - timm>=1.0
+      # torch-uncertainty / albumentations / opencv / scikit-image are imported
+      # nowhere in this project; see the note in pyproject.toml. For the optional
+      # third-party UQ cross-check, use: pip install -e ".[uq]"
+      - -e .

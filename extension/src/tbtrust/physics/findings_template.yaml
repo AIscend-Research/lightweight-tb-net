@@ -1,0 +1,184 @@
+# Finding-contrast transcription template
+# =======================================
+# Fill this in and pass it as `--findings physics/findings_template.yaml` (or
+# your own copy) to `scripts/physics_certificates.py`, or call
+# `physics.findings.load_findings(path)` + `install(...)` directly. It replaces
+# the NOMINAL placeholder table in `physics/findings.py`, which no publication
+# may quote for an absolute verdict.
+#
+# Every `delta_d` below reads TRANSCRIBE_ME on purpose: `load_findings` calls
+# float() on it, so a half-filled table fails loudly at load rather than
+# silently certifying images against a placeholder. Fill the value AND the
+# source in the same edit -- a number without a citation is what this file
+# exists to prevent.
+#
+# ---------------------------------------------------------------------------
+# What quantity to transcribe
+# ---------------------------------------------------------------------------
+# `delta_d` is the magnitude of the optical-density step the finding produces
+# against the *adjacent lung field* on a developed screen-film chest radiograph,
+# on the linear part of the characteristic curve. Magnitude only: a
+# consolidation is more attenuating than the lung it replaces so it lowers
+# density, a cavity's air-filled lumen raises it, and `film.insert_lesion` owns
+# the sign. `delta_d_sigma` is the spread across presentations, not a
+# measurement error -- it is what `FindingSpec.delta_d_sigma` propagates into
+# the certificate's reported margin, so a finding with a genuinely wide range
+# should say so rather than quoting a tidy median.
+#
+# ---------------------------------------------------------------------------
+# Converting from what the literature actually quotes
+# ---------------------------------------------------------------------------
+# Most published lesion contrasts are *subject contrast*: a ratio of X-ray
+# exposures reaching the screen, or a percentage transmission difference, not an
+# optical density. Convert with `density.delta_density_from_contrast`:
+#
+#     Delta D = gamma_film * log10(1 + C)
+#
+# where C is the fractional exposure difference and gamma_film is the
+# screen-film system's average gradient (`density.AVERAGE_GRADIENT_DEFAULT`,
+# 2.5; range 2.0-3.5, chest film at the flatter end). Dropping gamma_film
+# understates Delta D by a factor of two to three -- the single most likely
+# transcription error, and it does not fail safe.
+#
+# Record which film gradient you assumed in `source`. If the paper you are
+# transcribing from states its own film's gradient, use that one.
+#
+# Three other traps, in the order they bite:
+#
+#  * **Digital-radiography contrasts do not transfer directly.** A DR system's
+#    quoted contrast is a post-processing choice, not a film property. If the
+#    source is DR, transcribe the subject contrast (or the attenuation
+#    difference) and convert, never the displayed grey-level difference.
+#  * **kVp matters.** Subject contrast falls as tube potential rises; chest
+#    technique is high-kVp (~120 kVp) specifically to flatten rib-versus-lung
+#    contrast. A contrast measured at 70 kVp is not the one a chest film shows.
+#    Record the kVp in `source`.
+#  * **`size_mm` is the dimension the detector integrates over**: a diameter for
+#    a nodule, a *wall thickness* for a cavity. Getting this wrong changes the
+#    template energy E and moves the floor directly, and for thin high-contrast
+#    findings it dominates the verdict.
+#
+# ---------------------------------------------------------------------------
+# The alternative: measure it
+# ---------------------------------------------------------------------------
+# Expose a contrast-detail phantom (a CDRAD-style plate, or more cheaply a step
+# wedge with drilled cavities of known depth) on the same film/processor
+# combination the clinic uses, at chest technique, and read the densities with a
+# densitometer. That gives numbers with real error bars for this specific site,
+# and it is the version worth doing if the deployment is real rather than
+# retrospective. Record the phantom, the technique factors and the densitometer
+# in `source`.
+#
+# ---------------------------------------------------------------------------
+# Sanity checks before you trust a filled-in table
+# ---------------------------------------------------------------------------
+#  1. Ordering: miliary < small nodule < infiltrate < fibrotic band < cavity
+#     wall < consolidation ~ effusion. A transcription that breaks the ordering
+#     is almost always a units error.
+#  2. Magnitude: nothing should exceed the lung field's own density range
+#     (`density.D_LUNG_RANGE`, ~1.95 D end to end). A `delta_d` above ~0.5 means
+#     the finding replaces the entire local dynamic range and should be
+#     justified in `note`.
+#  3. Re-run `physics.validate.certificate_consistency` after the swap. It
+#     checks the certificate's *ordering* properties, which must hold whatever
+#     the table says: floor rises with severity, margin falls, INSUFFICIENT
+#     fraction increases. It is the check to run precisely because it does not
+#     depend on these numbers being right.
+#  4. Re-run `scripts/validate_physics.py`. The calibration ratio is computed
+#     against the floor, not against this table, so it should not move; if it
+#     does, something other than the table changed.
+#
+# `nominal_delta_d` / `nominal_size_mm` carry the current placeholder values so
+# you can see what you are replacing and catch an order-of-magnitude slip. They
+# are ignored by `load_findings`.
+
+findings:
+  - key: miliary_nodule
+    name: Miliary nodule
+    delta_d: TRANSCRIBE_ME
+    delta_d_sigma: TRANSCRIBE_ME
+    size_mm: TRANSCRIBE_ME
+    size_sigma_mm: TRANSCRIBE_ME
+    nominal_delta_d: 0.030
+    nominal_size_mm: 2.0
+    source: ""        # e.g. "Author et al. 2019 Table 2, subject contrast 1.2% at 120 kVp, gamma_film=2.5"
+    note: >-
+      The hardest target by a wide margin: small and low contrast at once. If any
+      finding falls below the floor of a phone photograph, it is this one, so its
+      value carries more of the paper's conclusion than any other row.
+
+  - key: small_nodule
+    name: Small nodule
+    delta_d: TRANSCRIBE_ME
+    delta_d_sigma: TRANSCRIBE_ME
+    size_mm: TRANSCRIBE_ME
+    size_sigma_mm: TRANSCRIBE_ME
+    nominal_delta_d: 0.060
+    nominal_size_mm: 6.0
+    source: ""
+    note: Individual granuloma or a small focus of disease.
+
+  - key: infiltrate
+    name: Patchy infiltrate
+    delta_d: TRANSCRIBE_ME
+    delta_d_sigma: TRANSCRIBE_ME
+    size_mm: TRANSCRIBE_ME
+    size_sigma_mm: TRANSCRIBE_ME
+    nominal_delta_d: 0.090
+    nominal_size_mm: 15.0
+    source: ""
+    note: >-
+      Ill-defined airspace opacity; the low-contrast edge is what makes it hard,
+      not the size. If the source quotes an edge gradient rather than a step,
+      transcribe the step across the whole opacity and say so.
+
+  - key: cavity_wall
+    name: Cavity wall
+    delta_d: TRANSCRIBE_ME
+    delta_d_sigma: TRANSCRIBE_ME
+    size_mm: TRANSCRIBE_ME
+    size_sigma_mm: TRANSCRIBE_ME
+    nominal_delta_d: 0.220
+    nominal_size_mm: 4.0
+    source: ""
+    note: >-
+      High contrast but thin, so blur-limited rather than contrast-limited.
+      size_mm is the WALL THICKNESS, not the cavity diameter -- the wall is what
+      the detector has to resolve.
+
+  - key: consolidation
+    name: Lobar consolidation
+    delta_d: TRANSCRIBE_ME
+    delta_d_sigma: TRANSCRIBE_ME
+    size_mm: TRANSCRIBE_ME
+    size_sigma_mm: TRANSCRIBE_ME
+    nominal_delta_d: 0.350
+    nominal_size_mm: 45.0
+    source: ""
+    note: >-
+      Large and high contrast; survives almost any capture. Keep it in the table
+      as the control that shows the certificate is not simply failing everything.
+
+  - key: pleural_effusion
+    name: Pleural effusion
+    delta_d: TRANSCRIBE_ME
+    delta_d_sigma: TRANSCRIBE_ME
+    size_mm: TRANSCRIBE_ME
+    size_sigma_mm: TRANSCRIBE_ME
+    nominal_delta_d: 0.400
+    nominal_size_mm: 30.0
+    source: ""
+    note: >-
+      Blunted costophrenic angle. Peripheral, so it is the finding most often
+      lost to a crop or to vignetting rather than to noise.
+
+  - key: fibrotic_band
+    name: Fibrotic band / scarring
+    delta_d: TRANSCRIBE_ME
+    delta_d_sigma: TRANSCRIBE_ME
+    size_mm: TRANSCRIBE_ME
+    size_sigma_mm: TRANSCRIBE_ME
+    nominal_delta_d: 0.080
+    nominal_size_mm: 5.0
+    source: ""
+    note: Post-primary sequela; thin and moderate contrast.
